@@ -68,7 +68,7 @@ jobs:
 
       - name: Install package with dev dependencies
         run: |
-          pip install target/wheels/*.whl
+          pip install rust/target/wheels/*.whl
           pip install ".[dev]"
 
       - name: Run tests

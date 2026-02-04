@@ -84,9 +84,8 @@ jobs:
         timeout-minutes: 30
         with:
           profile: minimal
-            toolchain: stable
-            override: true
-        with:
+          toolchain: stable
+          override: true
           components: rustfmt, clippy
 
       - name: Cache Rust dependencies

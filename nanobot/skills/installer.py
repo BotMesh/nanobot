@@ -1,4 +1,5 @@
 """Installer utilities for Skills (supports direct URLs and system-bundled skills)."""
+
 from __future__ import annotations
 
 import shutil
@@ -6,9 +7,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 from typing import Optional
-from urllib.request import urlopen, Request
+from urllib.request import Request, urlopen
 
-from nanobot.utils.helpers import get_skills_path, safe_filename
+from nanobot.utils.helpers import get_skills_path
 
 
 def _download_to_temp(url: str) -> Path:
@@ -81,7 +82,9 @@ def install_from_system(name: str, workspace: Optional[Path] = None) -> Path:
         src = pkg_skills / alt
     if not src.exists() or not src.is_dir():
         # list available system skills
-        available = sorted([p.name for p in pkg_skills.iterdir() if p.is_dir() and (p / "SKILL.md").exists()])
+        available = sorted(
+            [p.name for p in pkg_skills.iterdir() if p.is_dir() and (p / "SKILL.md").exists()]
+        )
         raise RuntimeError(f"System skill '{name}' not found. Available: {', '.join(available)}")
 
     dest = skills_dir / name

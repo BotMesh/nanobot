@@ -2,15 +2,15 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use std::fs;
-use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use uuid::Uuid;
-use std::io::Write;
-use std::env;
 use reqwest::blocking::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::env;
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
+use uuid::Uuid;
 
 /// Memory system for the agent.
 ///
@@ -198,20 +198,30 @@ impl MemoryStore {
                             let mut start = 0usize;
                             let len = text.len();
                             while start < len {
-                                let end = if start + chunk_size > len { len } else { start + chunk_size };
+                                let end = if start + chunk_size > len {
+                                    len
+                                } else {
+                                    start + chunk_size
+                                };
                                 let chunk = &text[start..end];
                                 let vec = embed_text(chunk);
                                 let id = Uuid::new_v4().to_string();
                                 let entry = IndexEntry {
                                     id,
-                                    path: path.strip_prefix(&self.workspace).unwrap_or(&path).to_string_lossy().to_string(),
+                                    path: path
+                                        .strip_prefix(&self.workspace)
+                                        .unwrap_or(&path)
+                                        .to_string_lossy()
+                                        .to_string(),
                                     start_line: 0,
                                     end_line: 0,
                                     text: chunk.to_string(),
                                     vector: vec,
                                 };
                                 entries.push(entry);
-                                if end == len { break; }
+                                if end == len {
+                                    break;
+                                }
                                 start = end.saturating_sub(overlap);
                             }
                         }
@@ -222,14 +232,23 @@ impl MemoryStore {
 
         // Serialize index to file
         let json = serde_json::to_string_pretty(&entries).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Failed to serialize index: {}", e))
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Failed to serialize index: {}",
+                e
+            ))
         })?;
 
         let mut f = fs::File::create(&self.index_file).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to create index file: {}", e))
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
+                "Failed to create index file: {}",
+                e
+            ))
         })?;
         f.write_all(json.as_bytes()).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to write index file: {}", e))
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
+                "Failed to write index file: {}",
+                e
+            ))
         })?;
 
         Ok(entries.len())
@@ -238,7 +257,14 @@ impl MemoryStore {
     /// Search the local index for semantically similar chunks to `query`.
     /// Returns a list of dict-like tuples: (path, snippet, score)
     #[pyo3(signature = (query, max_results=5, min_score=0.0))]
-    pub fn search(&self, py: Python<'_>, query: String, max_results: usize, min_score: f32) -> PyResult<Py<PyList>> {
+    pub fn search(
+        &self,
+        py: Python<'_>,
+        query: String,
+        max_results: usize,
+        min_score: f32,
+    ) -> PyResult<Py<PyList>> {
+        #[warn(unused_mut)]
         let mut result = PyList::empty(py);
 
         if !self.index_file.exists() {
@@ -246,7 +272,10 @@ impl MemoryStore {
         }
 
         let json = fs::read_to_string(&self.index_file).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to read index file: {}", e))
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
+                "Failed to read index file: {}",
+                e
+            ))
         })?;
 
         let entries: Vec<IndexEntry> = serde_json::from_str(&json).map_err(|e| {
@@ -255,12 +284,15 @@ impl MemoryStore {
 
         let qvec = embed_text(&query);
 
-        let mut scored: Vec<(f32, &IndexEntry)> = entries.iter().map(|e| {
-            let score = cosine_similarity(&qvec, &e.vector);
-            (score, e)
-        }).collect();
+        let mut scored: Vec<(f32, &IndexEntry)> = entries
+            .iter()
+            .map(|e| {
+                let score = cosine_similarity(&qvec, &e.vector);
+                (score, e)
+            })
+            .collect();
 
-        scored.retain(|(s, _)| *s as f32 >= min_score);
+        scored.retain(|(s, _)| *s >= min_score);
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
         for (score, entry) in scored.into_iter().take(max_results) {
@@ -354,7 +386,7 @@ fn embed_local(text: &str) -> Vec<f32> {
     vec
 }
 
-fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
     }
@@ -365,26 +397,37 @@ fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
 /// Try remote embedding via OpenAI-compatible endpoint (OPENAI_API_BASE/OPENAI_API_KEY or OPENROUTER_API_KEY).
 /// Returns None on any failure; caller should fall back to local embedding.
 fn embed_remote(text: &str) -> Option<Vec<f32>> {
-    let api_key = env::var("OPENAI_API_KEY").ok().or_else(|| env::var("OPENROUTER_API_KEY").ok());
-    let api_key = match api_key {
-        Some(k) => k,
-        None => return None,
-    };
+    let api_key = env::var("OPENAI_API_KEY")
+        .ok()
+        .or_else(|| env::var("OPENROUTER_API_KEY").ok())?;
 
-    let api_base = env::var("OPENAI_API_BASE").unwrap_or_else(|_| "https://api.openai.com".to_string());
+    let api_base =
+        env::var("OPENAI_API_BASE").unwrap_or_else(|_| "https://api.openai.com".to_string());
     let url = format!("{}/v1/embeddings", api_base.trim_end_matches('/'));
 
     let client = Client::new();
     let body = serde_json::json!({"model": "text-embedding-3-small", "input": text});
 
-    let resp = client.post(&url).bearer_auth(api_key).json(&body).send().ok()?;
+    let resp = client
+        .post(&url)
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .ok()?;
     if !resp.status().is_success() {
         return None;
     }
     let v: Value = resp.json().ok()?;
     let arr = v.get("data")?.get(0)?.get("embedding")?.as_array()?;
-    let vec: Vec<f32> = arr.iter().filter_map(|n| n.as_f64().map(|f| f as f32)).collect();
-    if vec.is_empty() { None } else { Some(vec) }
+    let vec: Vec<f32> = arr
+        .iter()
+        .filter_map(|n| n.as_f64().map(|f| f as f32))
+        .collect();
+    if vec.is_empty() {
+        None
+    } else {
+        Some(vec)
+    }
 }
 
 /// Embed text using remote provider when available, otherwise fall back to deterministic local embedding.

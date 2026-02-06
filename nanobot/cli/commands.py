@@ -69,7 +69,7 @@ def onboard():
     console.print("     Get one at: https://openrouter.ai/keys")
     console.print('  2. Chat: [cyan]nanobot agent -m "Hello!"[/cyan]')
     console.print(
-        "\n[dim]Want Telegram/WhatsApp? See: https://github.com/eigmax/nanobot#-chat-apps[/dim]"
+        "\n[dim]Want Telegram/WhatsApp? See: https://github.com/BotMesh/nanobot#-chat-apps[/dim]"
     )
 
 
@@ -145,7 +145,6 @@ This file stores important information that should persist across sessions.
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
 
-
 # ---------------------------------------------------------------------------
 # Config commands
 # ---------------------------------------------------------------------------
@@ -156,11 +155,21 @@ app.add_typer(config_app, name="config")
 @config_app.command("compaction")
 def config_compaction(
     show: bool = typer.Option(True, "--show/--no-show", help="Show current compaction settings"),
-    enabled: bool | None = typer.Option(None, "--enabled/--disabled", help="Enable or disable auto-compaction"),
-    keep_last: int | None = typer.Option(None, "--keep-last", "-k", help="Number of recent messages to keep"),
-    trigger_ratio: float | None = typer.Option(None, "--trigger-ratio", help="Trigger ratio (0.0-1.0) of model tokens"),
-    silent: bool | None = typer.Option(None, "--silent/--no-silent", help="Run compactions silently (no logs)") ,
-    chars_per_token: int | None = typer.Option(None, "--chars-per-token", help="Characters per token for naive estimator"),
+    enabled: bool | None = typer.Option(
+        None, "--enabled/--disabled", help="Enable or disable auto-compaction"
+    ),
+    keep_last: int | None = typer.Option(
+        None, "--keep-last", "-k", help="Number of recent messages to keep"
+    ),
+    trigger_ratio: float | None = typer.Option(
+        None, "--trigger-ratio", help="Trigger ratio (0.0-1.0) of model tokens"
+    ),
+    silent: bool | None = typer.Option(
+        None, "--silent/--no-silent", help="Run compactions silently (no logs)"
+    ),
+    chars_per_token: int | None = typer.Option(
+        None, "--chars-per-token", help="Characters per token for naive estimator"
+    ),
 ):
     """View or update compaction settings in the config file."""
     from nanobot.config.loader import get_config_path, load_config, save_config
@@ -203,10 +212,18 @@ def config_compaction(
 @config_app.command("compaction-model")
 def config_compaction_model(
     model: str = typer.Argument(..., help="Model name (e.g., anthropic/claude-opus-4-5)"),
-    show: bool = typer.Option(True, "--show/--no-show", help="Show current model-specific settings"),
-    keep_last: int | None = typer.Option(None, "--keep-last", "-k", help="Override keep_last for this model"),
-    trigger_ratio: float | None = typer.Option(None, "--trigger-ratio", help="Override trigger_ratio for this model"),
-    silent: bool | None = typer.Option(None, "--silent/--no-silent", help="Override silent for this model"),
+    show: bool = typer.Option(
+        True, "--show/--no-show", help="Show current model-specific settings"
+    ),
+    keep_last: int | None = typer.Option(
+        None, "--keep-last", "-k", help="Override keep_last for this model"
+    ),
+    trigger_ratio: float | None = typer.Option(
+        None, "--trigger-ratio", help="Override trigger_ratio for this model"
+    ),
+    silent: bool | None = typer.Option(
+        None, "--silent/--no-silent", help="Override silent for this model"
+    ),
     clear: bool = typer.Option(False, "--clear", help="Remove all overrides for this model"),
 ):
     """View or set per-model compaction overrides."""
@@ -253,7 +270,6 @@ def config_compaction_model(
     if updated:
         save_config(config, config_path)
         console.print(f"[green]✓[/green] Updated overrides for {model}")
-
 
 
 # ============================================================================
@@ -460,8 +476,12 @@ app.add_typer(sessions_app, name="sessions")
 @sessions_app.command("compact")
 def sessions_compact(
     session_key: str = typer.Argument(..., help="Session key, e.g. telegram:12345"),
-    keep_last: int = typer.Option(50, "--keep-last", "-k", help="Number of recent messages to keep"),
-    instruction: str | None = typer.Option(None, "--instruction", "-i", help="Optional compaction instruction"),
+    keep_last: int = typer.Option(
+        50, "--keep-last", "-k", help="Number of recent messages to keep"
+    ),
+    instruction: str | None = typer.Option(
+        None, "--instruction", "-i", help="Optional compaction instruction"
+    ),
 ):
     """Compact an existing session's history into a compact summary entry."""
     from nanobot.config.loader import load_config
@@ -474,7 +494,9 @@ def sessions_compact(
     try:
         compacted = sm.compact_session(session_key, keep_last=keep_last, instruction=instruction)
         if compacted:
-            console.print(f"[green]✓[/green] Compacted {compacted} messages for session {session_key}")
+            console.print(
+                f"[green]✓[/green] Compacted {compacted} messages for session {session_key}"
+            )
         else:
             console.print(f"[yellow]No messages to compact for session {session_key}[/yellow]")
     except Exception as e:
@@ -537,58 +559,6 @@ def _get_bridge_dir() -> Path:
         console.print("Try reinstalling: pip install --force-reinstall nanobot")
         raise typer.Exit(1)
 
-
-# ============================================================================
-# Skills commands
-# ============================================================================
-
-skills_app = typer.Typer(help="Manage skills")
-app.add_typer(skills_app, name="skills")
-
-
-@skills_app.command("install")
-def skills_install(
-    name_or_url: str = typer.Argument(..., help="Skill name (system) or URL to .skill file"),
-    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace path"),
-):
-    """Install a system-bundled skill or an explicit .skill URL.
-
-    Examples:
-      nanobot skills install find-skills
-      nanobot skills install file:///path/to/my.skill
-    """
-    from pathlib import Path
-    from nanobot.utils.helpers import get_workspace_path
-
-    ws = get_workspace_path(workspace)
-
-    # Decide whether it's a URL (support http(s) and file:// local URLs)
-    if name_or_url.startswith(("http://", "https://", "file://")):
-        url = name_or_url
-        console.print(f"Downloading skill from {url}...")
-        try:
-            from nanobot.skills.installer import install_from_url
-
-            installed = install_from_url(url, workspace=ws)
-            console.print(f"[green]✓[/green] Installed skill to {installed}")
-        except Exception as e:
-            console.print(f"[red]Error:[/red] {e}")
-            raise typer.Exit(1)
-    else:
-        name = name_or_url
-        # System-installed skills: currently only 'find-skills' is supported
-        console.print(f"Installing system skill 'find-skills'...")
-        try:
-            from nanobot.skills.installer import install_from_system
-
-            installed = install_from_system("find-skills", workspace=ws)
-            console.print(f"[green]✓[/green] Installed skill to {installed}")
-        except Exception as e:
-            console.print(f"[red]Error:[/red] {e}")
-            raise typer.Exit(1)
-
-    console.print(f"{__logo__} Setting up bridge...")
-
     # Copy to user directory
     user_bridge.parent.mkdir(parents=True, exist_ok=True)
     if user_bridge.exists():
@@ -613,6 +583,54 @@ def skills_install(
     return user_bridge
 
 
+# ============================================================================
+# Skills commands
+# ============================================================================
+
+skills_app = typer.Typer(help="Manage skills")
+app.add_typer(skills_app, name="skills")
+
+
+@skills_app.command("install")
+def skills_install(
+    name_or_url: str = typer.Argument(..., help="Skill name (system) or URL to .skill file"),
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace path"),
+):
+    """Install a system-bundled skill or an explicit .skill URL.
+
+    Examples:
+      nanobot skills install find-skills
+      nanobot skills install file:///path/to/my.skill
+    """
+    from nanobot.utils.helpers import get_workspace_path
+
+    ws = get_workspace_path(workspace)
+
+    # Decide whether it's a URL (support http(s) and file:// local URLs)
+    if name_or_url.startswith(("http://", "https://", "file://")):
+        url = name_or_url
+        console.print(f"Downloading skill from {url}...")
+        try:
+            from nanobot.skills.installer import install_from_url
+
+            installed = install_from_url(url, workspace=ws)
+            console.print(f"[green]✓[/green] Installed skill to {installed}")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
+    else:
+        # System-installed skills: currently only 'find-skills' is supported
+        console.print("Installing system skill 'find-skills'...")
+        try:
+            from nanobot.skills.installer import install_from_system
+
+            installed = install_from_system("find-skills", workspace=ws)
+            console.print(f"[green]✓[/green] Installed skill to {installed}")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
+
+
 @skills_app.command("list")
 def skills_list(
     workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace path"),
@@ -623,7 +641,6 @@ def skills_list(
 
     Optionally filter by `--query` and output JSON with `--json`.
     """
-    from pathlib import Path
     from nanobot.utils.helpers import get_workspace_path
 
     ws = get_workspace_path(workspace)

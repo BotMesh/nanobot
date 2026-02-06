@@ -1,14 +1,14 @@
 """Memory system for persistent agent memory."""
 
-from datetime import datetime
-from pathlib import Path
-
-from nanobot.utils.helpers import ensure_dir, today_date
 import hashlib
 import json
 import math
 import uuid
-from typing import List, Dict
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
+
+from nanobot.utils.helpers import ensure_dir, today_date
 
 
 class MemoryStore:
@@ -178,7 +178,9 @@ class MemoryStore:
         scored.sort(key=lambda x: x[0], reverse=True)
         results = []
         for score, e in scored[:max_results]:
-            results.append({"path": e.get("path", ""), "snippet": e.get("text", ""), "score": score})
+            results.append(
+                {"path": e.get("path", ""), "snippet": e.get("text", ""), "score": score}
+            )
         return results
 
 

@@ -8,7 +8,13 @@ except ImportError:
 __all__ = ["MemoryStore"]
 
 
-def search_memory(workspace, query: str, max_results: int = 5, min_score: float = 0.0, build_index_if_missing: bool = True):
+def search_memory(
+    workspace,
+    query: str,
+    max_results: int = 5,
+    min_score: float = 0.0,
+    build_index_if_missing: bool = True,
+):
     """Helper: construct `MemoryStore`, ensure index, and run a semantic search.
 
     Returns a list of dicts with keys `path`, `snippet`, and `score`.
@@ -16,11 +22,6 @@ def search_memory(workspace, query: str, max_results: int = 5, min_score: float 
     store = MemoryStore(workspace)
 
     # If index file missing and builder is available, build it
-    try:
-        index_path = getattr(store, "memory_dir")
-    except Exception:
-        index_path = None
-
     # Some implementations expose build_index as a method
     if build_index_if_missing:
         try:
@@ -30,6 +31,7 @@ def search_memory(workspace, query: str, max_results: int = 5, min_score: float 
                 index_file = None
                 if mem_dir:
                     from pathlib import Path
+
                     index_file = Path(mem_dir) / ".index.json"
                 if index_file is None or not index_file.exists():
                     try:

@@ -327,9 +327,7 @@ class TelegramChannel(BaseChannel):
         type_map = {"image": ".jpg", "voice": ".ogg", "audio": ".mp3", "file": ""}
         return type_map.get(media_type, "")
 
-    async def _handle_compact_command(
-        self, message, sender_id: str, chat_id: int
-    ) -> None:
+    async def _handle_compact_command(self, message, sender_id: str, chat_id: int) -> None:
         """Handle /compact command for session compaction."""
         if not self._app:
             logger.warning("Telegram bot not running")
@@ -338,14 +336,13 @@ class TelegramChannel(BaseChannel):
         # Parse command: /compact [keep_last] [--silent | --verbose]
         parts = message.text.strip().split()
         keep_last = 50  # default
-        silent = True  # default
 
         i = 1  # skip "/compact"
         while i < len(parts):
             if parts[i] == "--silent":
-                silent = True
+                pass  # For now, we always return results
             elif parts[i] == "--verbose" or parts[i] == "--no-silent":
-                silent = False
+                pass  # For now, we always return results
             elif parts[i].isdigit():
                 keep_last = int(parts[i])
             else:
@@ -374,7 +371,7 @@ class TelegramChannel(BaseChannel):
                 session = sm.get_or_create(session_key)
                 telemetry = session.metadata.get("compactions", {})
 
-                status_msg = f"🧹 Compaction complete!\n"
+                status_msg = "🧹 Compaction complete!\n"
                 status_msg += f"  Compacted: {compacted} messages\n"
                 status_msg += f"  Kept: {keep_last} recent messages\n"
                 if telemetry:

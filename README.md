@@ -16,10 +16,6 @@
 
 ⚡️ Delivers core agent functionality in just **~4,000** lines of code — **99% smaller** than Clawdbot's 430k+ lines.
 
-## 📢 News
-
-- **2026-02-01** 🎉 nanobot launched! Welcome to try 🐈 nanobot!
-
 ## Key Features of nanobot:
 
 🪶 **Ultra-Lightweight**: Just ~4,000 lines of code — 99% smaller than Clawdbot - core functionality.
@@ -74,7 +70,7 @@ If you need to specify a particular Python executable for maturin builds, set `P
 **Install from source** (latest features, recommended for development)
 
 ```bash
-git clone https://github.com/eigmax/nanobot.git
+git clone https://github.com/BotMesh/nanobot.git
 cd nanobot
 pip install -e .
 ```
@@ -457,7 +453,7 @@ docker run -v ~/.nanobot:/root/.nanobot --rm nanobot status
 
 PRs welcome! The codebase is intentionally small and readable. 🤗
 
-**Roadmap** — Pick an item and [open a PR](https://github.com/eigmax/nanobot/pulls)!
+**Roadmap** — Pick an item and [open a PR](https://github.com/BotMesh/nanobot/pulls)!
 
 - [x] **Voice Transcription** — Support for Groq Whisper (Issue #13)
 - [ ] **Multi-modal** — See and hear (images, voice, video)
@@ -465,31 +461,6 @@ PRs welcome! The codebase is intentionally small and readable. 🤗
 - [ ] **Better reasoning** — Multi-step planning and reflection
 - [ ] **More integrations** — Discord, Slack, email, calendar
 - [ ] **Self-improvement** — Learn from feedback and mistakes
-
-### Contributors
-
-<a href="https://github.com/eigmax/nanobot/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=eigmax/nanobot" />
-</a>
-
-
-## ⭐ Star History
-
-<div align="center">
-  <a href="https://star-history.com/#eigmax/nanobot&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=eigmax/nanobot&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=eigmax/nanobot&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=eigmax/nanobot&type=Date" style="border-radius: 15px; box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);" />
-    </picture>
-  </a>
-</div>
-
-<p align="center">
-  <em> Thanks for visiting ✨ nanobot!</em><br><br>
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=eigmax.nanobot&style=for-the-badge&color=00d4ff" alt="Views">
-</p>
-
 
 <p align="center">
   <sub>nanobot is for educational, research, and technical exchange purposes only</sub>

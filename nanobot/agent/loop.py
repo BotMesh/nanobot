@@ -193,13 +193,19 @@ class AgentLoop:
 
         if compaction_enabled:
             # Naive token estimate: 1 token ~= chars_per_token characters
-            estimated_tokens = sum(len(str(m.get("content", ""))) for m in messages) // max(1, chars_per_token)
+            estimated_tokens = sum(len(str(m.get("content", ""))) for m in messages) // max(
+                1, chars_per_token
+            )
             if estimated_tokens >= int(max_tokens * compaction_trigger_ratio):
                 if not compaction_silent:
-                    logger.info(f"Context near limit ({estimated_tokens}/{max_tokens} tokens). Running compaction.")
+                    logger.info(
+                        f"Context near limit ({estimated_tokens}/{max_tokens} tokens). Running compaction."
+                    )
                 # Compact the session using configured keep_last
                 try:
-                    compacted = self.sessions.compact_session(msg.session_key, keep_last=compaction_keep_last)
+                    compacted = self.sessions.compact_session(
+                        msg.session_key, keep_last=compaction_keep_last
+                    )
                     if compacted > 0:
                         # Rebuild messages from the compacted history
                         session = self.sessions.get_or_create(msg.session_key)
@@ -209,7 +215,9 @@ class AgentLoop:
                             media=msg.media if msg.media else None,
                         )
                         if not compaction_silent:
-                            logger.info(f"Auto-compaction completed: {compacted} messages compacted.")
+                            logger.info(
+                                f"Auto-compaction completed: {compacted} messages compacted."
+                            )
                 except Exception as e:
                     logger.warning(f"Auto-compaction failed: {e}")
 

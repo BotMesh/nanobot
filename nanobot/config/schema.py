@@ -29,6 +29,14 @@ class ChannelsConfig(BaseModel):
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
 
 
+class CompactionOverride(BaseModel):
+    """Per-model compaction setting overrides."""
+
+    keep_last: int | None = None
+    trigger_ratio: float | None = None
+    silent: bool | None = None
+
+
 class AgentDefaults(BaseModel):
     """Default agent configuration."""
 
@@ -37,6 +45,15 @@ class AgentDefaults(BaseModel):
     max_tokens: int = 8192
     temperature: float = 0.7
     max_tool_iterations: int = 20
+    # Compaction settings
+    compaction_enabled: bool = True
+    compaction_keep_last: int = 50
+    compaction_trigger_ratio: float = 0.9
+    compaction_silent: bool = True
+    # Approximate characters per token for naive estimator (1 token ~= 4 chars)
+    token_chars_per_token: int = 4
+    # Per-model compaction overrides (e.g., {"anthropic/claude-opus-4-5": {...}})
+    compaction_model_overrides: dict[str, CompactionOverride] = Field(default_factory=dict)
 
 
 class AgentsConfig(BaseModel):

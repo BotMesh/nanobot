@@ -31,6 +31,68 @@ class Session:
         self.messages.append(msg)
         self.updated_at = datetime.now()
 
+    def compact(self, keep_last: int = 50, instruction: str | None = None) -> int:
+        """Compact older messages into a single summary entry.
+
+        This summarizes all messages older than the last `keep_last` messages
+        into one compaction entry stored as the first message. The method
+        returns the number of messages that were compacted.
+        """
+        if keep_last < 0:
+            keep_last = 0
+
+        total = len(self.messages)
+        if total <= keep_last:
+            return 0
+
+        # Messages to compact (older ones) and the recent window to keep
+        old = self.messages[: max(0, total - keep_last)]
+        recent = self.messages[max(0, total - keep_last) :]
+
+        # Build a compact summary. This is intentionally simple and deterministic
+        # so it can run offline; consumers can replace this with an LLM-based
+        # summary later if desired.
+        parts: list[str] = []
+        if instruction:
+            parts.append(f"Compaction instructions: {instruction}")
+
+        parts.append(f"Compacted {len(old)} messages from session {self.key}.")
+        # include brief excerpts from older messages
+        for m in old:
+            role = m.get("role", "unknown")
+            content = (m.get("content") or "").replace("\n", " ")
+            excerpt = content[:200]
+            parts.append(f"- {role}: {excerpt}")
+
+        summary = "\n".join(parts)
+
+        compaction_entry = {
+            "_type": "compaction",
+            "role": "system",
+            "content": f"🧹 Auto-compaction summary:\n\n{summary}",
+            "timestamp": datetime.now().isoformat(),
+            "compacted_count": len(old),
+        }
+
+        # Replace messages with a single compaction entry followed by the recent window
+        self.messages = [compaction_entry] + recent
+        self.updated_at = datetime.now()
+
+        # Update metadata with compaction telemetry
+        if "compactions" not in self.metadata:
+            self.metadata["compactions"] = {
+                "total": 0,
+                "count": 0,
+                "last_at": None,
+                "messages_compacted": 0,
+            }
+        self.metadata["compactions"]["total"] += 1
+        self.metadata["compactions"]["count"] += len(old)
+        self.metadata["compactions"]["last_at"] = self.updated_at.isoformat()
+        self.metadata["compactions"]["messages_compacted"] += len(old)
+
+        return len(old)
+
     def get_history(self, max_messages: int = 50) -> list[dict[str, Any]]:
         """
         Get message history for LLM context.
@@ -203,3 +265,11 @@ class SessionManager:
                 continue
 
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)
+
+    def compact_session(self, key: str, keep_last: int = 50, instruction: str | None = None) -> int:
+        """Helper: load-or-create the session, run compaction, save, and return compacted count."""
+        session = self.get_or_create(key)
+        compacted = session.compact(keep_last=keep_last, instruction=instruction)
+        if compacted > 0:
+            self.save(session)
+        return compacted

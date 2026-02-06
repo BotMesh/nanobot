@@ -145,6 +145,117 @@ This file stores important information that should persist across sessions.
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
 
+
+# ---------------------------------------------------------------------------
+# Config commands
+# ---------------------------------------------------------------------------
+config_app = typer.Typer(help="View and edit configuration")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("compaction")
+def config_compaction(
+    show: bool = typer.Option(True, "--show/--no-show", help="Show current compaction settings"),
+    enabled: bool | None = typer.Option(None, "--enabled/--disabled", help="Enable or disable auto-compaction"),
+    keep_last: int | None = typer.Option(None, "--keep-last", "-k", help="Number of recent messages to keep"),
+    trigger_ratio: float | None = typer.Option(None, "--trigger-ratio", help="Trigger ratio (0.0-1.0) of model tokens"),
+    silent: bool | None = typer.Option(None, "--silent/--no-silent", help="Run compactions silently (no logs)") ,
+    chars_per_token: int | None = typer.Option(None, "--chars-per-token", help="Characters per token for naive estimator"),
+):
+    """View or update compaction settings in the config file."""
+    from nanobot.config.loader import get_config_path, load_config, save_config
+
+    config_path = get_config_path()
+    config = load_config()
+
+    if show:
+        defaults = config.agents.defaults
+        console.print("Compaction settings:")
+        console.print(f"  enabled: {defaults.compaction_enabled}")
+        console.print(f"  keep_last: {defaults.compaction_keep_last}")
+        console.print(f"  trigger_ratio: {defaults.compaction_trigger_ratio}")
+        console.print(f"  silent: {defaults.compaction_silent}")
+        console.print(f"  chars_per_token: {defaults.token_chars_per_token}")
+
+    # Update fields if provided
+    updated = False
+    if enabled is not None:
+        config.agents.defaults.compaction_enabled = enabled
+        updated = True
+    if keep_last is not None:
+        config.agents.defaults.compaction_keep_last = keep_last
+        updated = True
+    if trigger_ratio is not None:
+        config.agents.defaults.compaction_trigger_ratio = trigger_ratio
+        updated = True
+    if silent is not None:
+        config.agents.defaults.compaction_silent = silent
+        updated = True
+    if chars_per_token is not None:
+        config.agents.defaults.token_chars_per_token = chars_per_token
+        updated = True
+
+    if updated:
+        save_config(config, config_path)
+        console.print(f"[green]✓[/green] Updated compaction settings in {config_path}")
+
+
+@config_app.command("compaction-model")
+def config_compaction_model(
+    model: str = typer.Argument(..., help="Model name (e.g., anthropic/claude-opus-4-5)"),
+    show: bool = typer.Option(True, "--show/--no-show", help="Show current model-specific settings"),
+    keep_last: int | None = typer.Option(None, "--keep-last", "-k", help="Override keep_last for this model"),
+    trigger_ratio: float | None = typer.Option(None, "--trigger-ratio", help="Override trigger_ratio for this model"),
+    silent: bool | None = typer.Option(None, "--silent/--no-silent", help="Override silent for this model"),
+    clear: bool = typer.Option(False, "--clear", help="Remove all overrides for this model"),
+):
+    """View or set per-model compaction overrides."""
+    from nanobot.config.loader import get_config_path, load_config, save_config
+    from nanobot.config.schema import CompactionOverride
+
+    config_path = get_config_path()
+    config = load_config()
+
+    overrides = config.agents.defaults.compaction_model_overrides
+
+    if show:
+        if model in overrides:
+            o = overrides[model]
+            console.print(f"Model overrides for {model}:")
+            console.print(f"  keep_last: {o.keep_last}")
+            console.print(f"  trigger_ratio: {o.trigger_ratio}")
+            console.print(f"  silent: {o.silent}")
+        else:
+            console.print(f"No overrides set for model {model}")
+
+    if clear:
+        if model in overrides:
+            del overrides[model]
+            save_config(config, config_path)
+            console.print(f"[green]✓[/green] Cleared overrides for {model}")
+        return
+
+    # Update overrides if provided
+    updated = False
+    if keep_last is not None or trigger_ratio is not None or silent is not None:
+        if model not in overrides:
+            overrides[model] = CompactionOverride()
+        if keep_last is not None:
+            overrides[model].keep_last = keep_last
+            updated = True
+        if trigger_ratio is not None:
+            overrides[model].trigger_ratio = trigger_ratio
+            updated = True
+        if silent is not None:
+            overrides[model].silent = silent
+            updated = True
+
+    if updated:
+        save_config(config, config_path)
+        console.print(f"[green]✓[/green] Updated overrides for {model}")
+
+
+
 # ============================================================================
 # Gateway / Server
 # ============================================================================
@@ -342,6 +453,34 @@ channels_app = typer.Typer(help="Manage channels")
 app.add_typer(channels_app, name="channels")
 
 
+sessions_app = typer.Typer(help="Manage sessions")
+app.add_typer(sessions_app, name="sessions")
+
+
+@sessions_app.command("compact")
+def sessions_compact(
+    session_key: str = typer.Argument(..., help="Session key, e.g. telegram:12345"),
+    keep_last: int = typer.Option(50, "--keep-last", "-k", help="Number of recent messages to keep"),
+    instruction: str | None = typer.Option(None, "--instruction", "-i", help="Optional compaction instruction"),
+):
+    """Compact an existing session's history into a compact summary entry."""
+    from nanobot.config.loader import load_config
+
+    config = load_config()
+    sm = __import__("nanobot.session._manager_py", fromlist=["SessionManager"]).SessionManager(
+        config.workspace_path
+    )
+
+    try:
+        compacted = sm.compact_session(session_key, keep_last=keep_last, instruction=instruction)
+        if compacted:
+            console.print(f"[green]✓[/green] Compacted {compacted} messages for session {session_key}")
+        else:
+            console.print(f"[yellow]No messages to compact for session {session_key}[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error compacting session: {e}[/red]")
+
+
 @channels_app.command("status")
 def channels_status():
     """Show channel status."""
@@ -398,6 +537,56 @@ def _get_bridge_dir() -> Path:
         console.print("Try reinstalling: pip install --force-reinstall nanobot")
         raise typer.Exit(1)
 
+
+# ============================================================================
+# Skills commands
+# ============================================================================
+
+skills_app = typer.Typer(help="Manage skills")
+app.add_typer(skills_app, name="skills")
+
+
+@skills_app.command("install")
+def skills_install(
+    name_or_url: str = typer.Argument(..., help="Skill name (system) or URL to .skill file"),
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace path"),
+):
+    """Install a system-bundled skill or an explicit .skill URL.
+
+    Examples:
+      nanobot skills install find-skills
+      nanobot skills install file:///path/to/my.skill
+    """
+    from pathlib import Path
+    from nanobot.utils.helpers import get_workspace_path
+
+    ws = get_workspace_path(workspace)
+
+    # Decide whether it's a URL (support http(s) and file:// local URLs)
+    if name_or_url.startswith(("http://", "https://", "file://")):
+        url = name_or_url
+        console.print(f"Downloading skill from {url}...")
+        try:
+            from nanobot.skills.installer import install_from_url
+
+            installed = install_from_url(url, workspace=ws)
+            console.print(f"[green]✓[/green] Installed skill to {installed}")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
+    else:
+        name = name_or_url
+        # System-installed skills: currently only 'find-skills' is supported
+        console.print(f"Installing system skill 'find-skills'...")
+        try:
+            from nanobot.skills.installer import install_from_system
+
+            installed = install_from_system("find-skills", workspace=ws)
+            console.print(f"[green]✓[/green] Installed skill to {installed}")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
+
     console.print(f"{__logo__} Setting up bridge...")
 
     # Copy to user directory
@@ -422,6 +611,42 @@ def _get_bridge_dir() -> Path:
         raise typer.Exit(1)
 
     return user_bridge
+
+
+@skills_app.command("list")
+def skills_list(
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace path"),
+    query: str | None = typer.Option(None, "--query", "-q", help="Filter skills by name substring"),
+    json_out: bool = typer.Option(False, "--json", help="Output JSON"),
+):
+    """List available system and workspace skills (uses find-skills).
+
+    Optionally filter by `--query` and output JSON with `--json`.
+    """
+    from pathlib import Path
+    from nanobot.utils.helpers import get_workspace_path
+
+    ws = get_workspace_path(workspace)
+    try:
+        # Try to use the bundled find-skills runtime
+        from nanobot.skills.find_skills.run import list_skills
+
+        skills = list_skills(ws, query=query)
+        if json_out:
+            import json
+
+            console.print(json.dumps(skills, indent=2, ensure_ascii=False))
+            return
+
+        console.print("[green]System skills:[/green]")
+        for s in skills.get("system", []):
+            console.print(f"  - {s}")
+        console.print("\n[green]Workspace skills:[/green]")
+        for s in skills.get("workspace", []):
+            console.print(f"  - {s}")
+    except Exception as e:
+        console.print(f"[red]Error listing skills:[/red] {e}")
+        raise typer.Exit(1)
 
 
 @channels_app.command("login")

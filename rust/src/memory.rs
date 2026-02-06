@@ -4,6 +4,13 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use std::fs;
 use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
+use std::io::Write;
+use std::env;
+use reqwest::blocking::Client;
+use serde_json::Value;
 
 /// Memory system for the agent.
 ///
@@ -13,6 +20,7 @@ pub struct MemoryStore {
     workspace: PathBuf,
     memory_dir: PathBuf,
     memory_file: PathBuf,
+    index_file: PathBuf,
 }
 
 #[pymethods]
@@ -30,11 +38,13 @@ impl MemoryStore {
         })?;
 
         let memory_file = memory_dir.join("MEMORY.md");
+        let index_file = memory_dir.join(".index.json");
 
         Ok(MemoryStore {
             workspace,
             memory_dir,
             memory_file,
+            index_file,
         })
     }
 
@@ -164,6 +174,106 @@ impl MemoryStore {
         Ok(result.into())
     }
 
+    /// Build a simple, local vector index for all markdown memory files.
+    /// This uses a deterministic local embedding (SHA256-based) so no external API is required.
+    pub fn build_index(&self) -> PyResult<usize> {
+        let mut entries: Vec<IndexEntry> = Vec::new();
+
+        if !self.memory_dir.exists() {
+            return Ok(0);
+        }
+
+        if let Ok(entries_iter) = fs::read_dir(&self.memory_dir) {
+            for entry in entries_iter.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.ends_with(".md") {
+                        if let Ok(text) = fs::read_to_string(&path) {
+                            // Chunk by roughly 800 characters with 100 char overlap
+                            let chunk_size = 800;
+                            let overlap = 100;
+                            let mut start = 0usize;
+                            let len = text.len();
+                            while start < len {
+                                let end = if start + chunk_size > len { len } else { start + chunk_size };
+                                let chunk = &text[start..end];
+                                let vec = embed_text(chunk);
+                                let id = Uuid::new_v4().to_string();
+                                let entry = IndexEntry {
+                                    id,
+                                    path: path.strip_prefix(&self.workspace).unwrap_or(&path).to_string_lossy().to_string(),
+                                    start_line: 0,
+                                    end_line: 0,
+                                    text: chunk.to_string(),
+                                    vector: vec,
+                                };
+                                entries.push(entry);
+                                if end == len { break; }
+                                start = end.saturating_sub(overlap);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Serialize index to file
+        let json = serde_json::to_string_pretty(&entries).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Failed to serialize index: {}", e))
+        })?;
+
+        let mut f = fs::File::create(&self.index_file).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to create index file: {}", e))
+        })?;
+        f.write_all(json.as_bytes()).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to write index file: {}", e))
+        })?;
+
+        Ok(entries.len())
+    }
+
+    /// Search the local index for semantically similar chunks to `query`.
+    /// Returns a list of dict-like tuples: (path, snippet, score)
+    #[pyo3(signature = (query, max_results=5, min_score=0.0))]
+    pub fn search(&self, py: Python<'_>, query: String, max_results: usize, min_score: f32) -> PyResult<Py<PyList>> {
+        let mut result = PyList::empty(py);
+
+        if !self.index_file.exists() {
+            return Ok(result.into());
+        }
+
+        let json = fs::read_to_string(&self.index_file).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to read index file: {}", e))
+        })?;
+
+        let entries: Vec<IndexEntry> = serde_json::from_str(&json).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Failed to parse index: {}", e))
+        })?;
+
+        let qvec = embed_text(&query);
+
+        let mut scored: Vec<(f32, &IndexEntry)> = entries.iter().map(|e| {
+            let score = cosine_similarity(&qvec, &e.vector);
+            (score, e)
+        }).collect();
+
+        scored.retain(|(s, _)| *s as f32 >= min_score);
+        scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (score, entry) in scored.into_iter().take(max_results) {
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("path", entry.path.clone())?;
+            dict.set_item("snippet", entry.text.clone())?;
+            dict.set_item("score", score)?;
+            result.append(dict)?;
+        }
+
+        Ok(result.into())
+    }
+
     /// Get memory context for the agent.
     pub fn get_memory_context(&self) -> String {
         let mut parts = Vec::new();
@@ -209,4 +319,79 @@ impl MemoryStore {
 /// Get today's date in YYYY-MM-DD format.
 fn today_date() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
+#[derive(Serialize, Deserialize)]
+struct IndexEntry {
+    id: String,
+    path: String,
+    start_line: usize,
+    end_line: usize,
+    text: String,
+    vector: Vec<f32>,
+}
+
+/// Create a deterministic local embedding for `text` using SHA256.
+/// This is a placeholder for a real embedding API and yields a fixed-length vector.
+fn embed_local(text: &str) -> Vec<f32> {
+    let mut hasher = Sha256::new();
+    hasher.update(text.as_bytes());
+    let digest = hasher.finalize();
+    // Build a 64-dim vector by repeating/expanding the digest bytes
+    let dims = 64usize;
+    let mut vec: Vec<f32> = Vec::with_capacity(dims);
+    for i in 0..dims {
+        let b = digest[i % digest.len()];
+        // map byte (0..255) to -1.0 .. 1.0
+        let v = (b as f32 / 127.5) - 1.0;
+        vec.push(v);
+    }
+    // normalize
+    let norm: f32 = vec.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-6);
+    for v in &mut vec {
+        *v /= norm;
+    }
+    vec
+}
+
+fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    dot
+}
+
+/// Try remote embedding via OpenAI-compatible endpoint (OPENAI_API_BASE/OPENAI_API_KEY or OPENROUTER_API_KEY).
+/// Returns None on any failure; caller should fall back to local embedding.
+fn embed_remote(text: &str) -> Option<Vec<f32>> {
+    let api_key = env::var("OPENAI_API_KEY").ok().or_else(|| env::var("OPENROUTER_API_KEY").ok());
+    let api_key = match api_key {
+        Some(k) => k,
+        None => return None,
+    };
+
+    let api_base = env::var("OPENAI_API_BASE").unwrap_or_else(|_| "https://api.openai.com".to_string());
+    let url = format!("{}/v1/embeddings", api_base.trim_end_matches('/'));
+
+    let client = Client::new();
+    let body = serde_json::json!({"model": "text-embedding-3-small", "input": text});
+
+    let resp = client.post(&url).bearer_auth(api_key).json(&body).send().ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let v: Value = resp.json().ok()?;
+    let arr = v.get("data")?.get(0)?.get("embedding")?.as_array()?;
+    let vec: Vec<f32> = arr.iter().filter_map(|n| n.as_f64().map(|f| f as f32)).collect();
+    if vec.is_empty() { None } else { Some(vec) }
+}
+
+/// Embed text using remote provider when available, otherwise fall back to deterministic local embedding.
+fn embed_text(text: &str) -> Vec<f32> {
+    if let Some(v) = embed_remote(text) {
+        v
+    } else {
+        embed_local(text)
+    }
 }

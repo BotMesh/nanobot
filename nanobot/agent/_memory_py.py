@@ -4,6 +4,11 @@ from datetime import datetime
 from pathlib import Path
 
 from nanobot.utils.helpers import ensure_dir, today_date
+import hashlib
+import json
+import math
+import uuid
+from typing import List, Dict
 
 
 class MemoryStore:
@@ -107,3 +112,87 @@ class MemoryStore:
             parts.append("## Today's Notes\n" + today)
 
         return "\n\n".join(parts) if parts else ""
+
+    def build_index(self) -> int:
+        """Build a simple local index for all markdown memory files.
+
+        Returns the number of indexed chunks written to `.index.json`.
+        """
+        entries: List[Dict] = []
+
+        if not self.memory_dir.exists():
+            return 0
+
+        for entry in self.memory_dir.iterdir():
+            path = entry
+            if not path.is_file() or not path.name.endswith(".md"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            chunk_size = 800
+            overlap = 100
+            start = 0
+            length = len(text)
+            while start < length:
+                end = min(start + chunk_size, length)
+                chunk = text[start:end]
+                vec = _embed_local(chunk)
+                entry_obj = {
+                    "id": str(uuid.uuid4()),
+                    "path": str(path.relative_to(self.workspace)),
+                    "start_line": 0,
+                    "end_line": 0,
+                    "text": chunk,
+                    "vector": vec,
+                }
+                entries.append(entry_obj)
+                if end == length:
+                    break
+                start = max(0, end - overlap)
+
+        index_path = self.memory_dir / ".index.json"
+        index_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+        return len(entries)
+
+    def search(self, query: str, max_results: int = 5, min_score: float = 0.0) -> List[Dict]:
+        """Search the local index for semantically similar chunks.
+
+        Returns a list of dicts: {path, snippet, score}.
+        """
+        index_path = self.memory_dir / ".index.json"
+        if not index_path.exists():
+            return []
+
+        try:
+            entries = json.loads(index_path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+
+        qvec = _embed_local(query)
+        scored = []
+        for e in entries:
+            vec = e.get("vector", [])
+            score = _cosine_similarity(qvec, vec)
+            if score >= min_score:
+                scored.append((score, e))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        results = []
+        for score, e in scored[:max_results]:
+            results.append({"path": e.get("path", ""), "snippet": e.get("text", ""), "score": score})
+        return results
+
+
+def _embed_local(text: str) -> List[float]:
+    h = hashlib.sha256(text.encode("utf-8")).digest()
+    dims = 64
+    vec = [(b / 127.5) - 1.0 for i, b in enumerate(h * (dims // len(h) + 1))[:dims]]
+    norm = math.sqrt(sum(x * x for x in vec))
+    if norm < 1e-6:
+        norm = 1e-6
+    return [x / norm for x in vec]
+
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    return sum(x * y for x, y in zip(a, b))

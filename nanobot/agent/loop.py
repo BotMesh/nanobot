@@ -22,7 +22,7 @@ from nanobot.agent.tools import (
 )
 from nanobot.bus import InboundMessage, MessageBus, OutboundMessage
 from nanobot.providers.base import LLMProvider
-from nanobot.session import SessionManager
+from nanobot.session._manager_py import SessionManager
 
 
 class AgentLoop:
@@ -158,6 +158,60 @@ class AgentLoop:
             current_message=msg.content,
             media=msg.media if msg.media else None,
         )
+
+        # Auto-compaction: estimate prompt size and compact older history if needed.
+        try:
+            from nanobot.config.loader import load_config
+
+            config = load_config()
+            defaults = config.agents.defaults
+            max_tokens = int(getattr(defaults, "max_tokens", 8192) or 8192)
+            compaction_enabled = bool(getattr(defaults, "compaction_enabled", True))
+            compaction_keep_last = int(getattr(defaults, "compaction_keep_last", 50))
+            compaction_trigger_ratio = float(getattr(defaults, "compaction_trigger_ratio", 0.9))
+            compaction_silent = bool(getattr(defaults, "compaction_silent", True))
+            chars_per_token = int(getattr(defaults, "token_chars_per_token", 4) or 4)
+
+            # Apply model-specific overrides if available
+            model_overrides = getattr(defaults, "compaction_model_overrides", {}) or {}
+            if self.model in model_overrides:
+                override = model_overrides[self.model]
+                if override.keep_last is not None:
+                    compaction_keep_last = override.keep_last
+                if override.trigger_ratio is not None:
+                    compaction_trigger_ratio = override.trigger_ratio
+                if override.silent is not None:
+                    compaction_silent = override.silent
+        except Exception:
+            # Fallback defaults
+            max_tokens = 8192
+            compaction_enabled = True
+            compaction_keep_last = 50
+            compaction_trigger_ratio = 0.9
+            compaction_silent = True
+            chars_per_token = 4
+
+        if compaction_enabled:
+            # Naive token estimate: 1 token ~= chars_per_token characters
+            estimated_tokens = sum(len(str(m.get("content", ""))) for m in messages) // max(1, chars_per_token)
+            if estimated_tokens >= int(max_tokens * compaction_trigger_ratio):
+                if not compaction_silent:
+                    logger.info(f"Context near limit ({estimated_tokens}/{max_tokens} tokens). Running compaction.")
+                # Compact the session using configured keep_last
+                try:
+                    compacted = self.sessions.compact_session(msg.session_key, keep_last=compaction_keep_last)
+                    if compacted > 0:
+                        # Rebuild messages from the compacted history
+                        session = self.sessions.get_or_create(msg.session_key)
+                        messages = self.context.build_messages(
+                            history=session.get_history(),
+                            current_message=msg.content,
+                            media=msg.media if msg.media else None,
+                        )
+                        if not compaction_silent:
+                            logger.info(f"Auto-compaction completed: {compacted} messages compacted.")
+                except Exception as e:
+                    logger.warning(f"Auto-compaction failed: {e}")
 
         # Agent loop
         iteration = 0

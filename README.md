@@ -28,6 +28,16 @@
 
 ⚡️ **Lightning Fast**: Minimal footprint means faster startup, lower resource usage, and quicker iterations.
 
+
+### CI / Docker notes for building the Rust extension
+
+When building the Rust Python extension inside CI or containers on newer Python versions (for example Python 3.14), set the following environment variable so PyO3 uses the stable ABI forward-compatibility:
+
+```bash
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+```
+
+If you need to specify a particular Python executable for maturin builds, set `PYO3_PYTHON` to the interpreter path.
 💎 **Easy-to-Use**: One-click to depoly and you're ready to go.
 
 ## 🏗️ Architecture
@@ -156,6 +166,95 @@ vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8000
 ```bash
 nanobot agent -m "Hello from my local LLM!"
 ```
+
+## 💾 Session Compaction
+
+nanobot automatically compacts long conversations to keep context windows efficient. When a conversation exceeds ~90% of the model's context window, old messages are summarized into a single "compaction" entry.
+
+**Features:**
+- ✅ **Automatic** — Triggered silently when context limit approached
+- ✅ **Manual** — Use `/compact` command in Telegram or CLI
+- ✅ **Configurable** — Tune per-model or globally
+- ✅ **Tracked** — View compaction stats in session metadata
+
+**Usage:**
+
+```bash
+# Manual compaction via CLI
+nanobot sessions compact telegram:12345 --keep-last 50
+
+# View/configure compaction settings
+nanobot config compaction --show
+nanobot config compaction --keep-last 30 --trigger-ratio 0.85
+
+# Per-model settings
+nanobot config compaction-model "anthropic/claude-opus-4-5" --keep-last 40
+```
+
+**Telegram:**
+
+```
+/compact              # Use default keep-last=50
+/compact 30           # Keep last 30 messages
+/compact 30 --verbose # Show detailed results
+```
+
+## 🧠 Long-term memory
+
+nanobot stores persistent memory under your workspace at `memory/` (by default your workspace is `~/.nanobot/workspace`). The memory system supports:
+
+- `MEMORY.md` — long-term notes you want the agent to remember.
+- `YYYY-MM-DD.md` — daily notes.
+- `.index.json` — a simple local semantic index (auto-generated).
+
+How it works
+- The Rust extension (or the Python fallback) exposes `MemoryStore.build_index()` and `MemoryStore.search(query, max_results, min_score)` to build a local vector index and search it.
+- If `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is set, nanobot will attempt to use the remote embeddings API and fall back to a deterministic local embedding when not available.
+
+Quick enable & usage
+
+1. Build and install the Rust extension (in development environments with Python ≧ 3.14 you may need to set `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`):
+
+```bash
+source .venv/bin/activate
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+export PYO3_PYTHON=/opt/homebrew/bin/python3.14
+cd rust
+maturin build --release -m Cargo.toml
+cd ..
+pip install rust/target/wheels/*.whl
+pip install -e .
+```
+
+2. Optionally provide an embeddings key (recommended for better results):
+
+```bash
+export OPENAI_API_KEY="sk-..."
+# or
+export OPENROUTER_API_KEY="or-..."
+```
+
+3. Build index and search (Python example):
+
+```python
+from pathlib import Path
+from nanobot.agent.memory import search_memory, MemoryStore
+# Build index explicitly (if you've updated memory files)
+store = MemoryStore(ws)
+store.build_index()
+
+# Search
+results = search_memory(ws, "when did I last deploy?", max_results=5)
+for r in results:
+  print(r["score"], r["path"])
+  print(r["snippet"][:200])
+  print("---")
+```
+
+Notes
+- If the `.index.json` file is missing, `search_memory()` will attempt to call `build_index()` automatically.
+- The local deterministic embedding is SHA256-based and works offline but yields lower-quality semantic matches than remote embeddings.
+
 
 > [!TIP]
 > The `apiKey` can be any non-empty string for local servers that don't require authentication.
@@ -307,6 +406,9 @@ Config file: `~/.nanobot/config.json`
 | `nanobot status` | Show status |
 | `nanobot channels login` | Link WhatsApp (scan QR) |
 | `nanobot channels status` | Show channel status |
+| `nanobot sessions compact <key>` | Manually compact a session |
+| `nanobot config compaction` | View/configure compaction settings |
+| `nanobot config compaction-model <model>` | Set per-model compaction settings |
 
 <details>
 <summary><b>Scheduled Tasks (Cron)</b></summary>
@@ -350,27 +452,6 @@ docker run -v ~/.nanobot:/root/.nanobot --rm nanobot agent -m "Hello!"
 docker run -v ~/.nanobot:/root/.nanobot --rm nanobot status
 ```
 
-## 📁 Project Structure
-
-```
-nanobot/
-├── agent/          # 🧠 Core agent logic
-│   ├── loop.py     #    Agent loop (LLM ↔ tool execution)
-│   ├── context.py  #    Prompt builder
-│   ├── memory.py   #    Persistent memory
-│   ├── skills.py   #    Skills loader
-│   ├── subagent.py #    Background task execution
-│   └── tools/      #    Built-in tools (incl. spawn)
-├── skills/         # 🎯 Bundled skills (github, weather, tmux...)
-├── channels/       # 📱 WhatsApp integration
-├── bus/            # 🚌 Message routing
-├── cron/           # ⏰ Scheduled tasks
-├── heartbeat/      # 💓 Proactive wake-up
-├── providers/      # 🤖 LLM providers (OpenRouter, etc.)
-├── session/        # 💬 Conversation sessions
-├── config/         # ⚙️ Configuration
-└── cli/            # 🖥️ Commands
-```
 
 ## 🤝 Contribute & Roadmap
 
@@ -380,7 +461,7 @@ PRs welcome! The codebase is intentionally small and readable. 🤗
 
 - [x] **Voice Transcription** — Support for Groq Whisper (Issue #13)
 - [ ] **Multi-modal** — See and hear (images, voice, video)
-- [ ] **Long-term memory** — Never forget important context
+- [x] **Long-term memory** — Never forget important context
 - [ ] **Better reasoning** — Multi-step planning and reflection
 - [ ] **More integrations** — Discord, Slack, email, calendar
 - [ ] **Self-improvement** — Learn from feedback and mistakes

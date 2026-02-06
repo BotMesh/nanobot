@@ -10,6 +10,7 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from nanobot.bus import MessageBus, OutboundMessage
 from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import TelegramConfig
+from nanobot.session._manager_py import SessionManager  # Use Python version for compaction support
 
 
 def _markdown_to_telegram_html(text: str) -> str:
@@ -222,6 +223,11 @@ class TelegramChannel(BaseChannel):
         # Store chat_id for replies
         self._chat_ids[sender_id] = chat_id
 
+        # Check for /compact command
+        if message.text and message.text.strip().startswith("/compact"):
+            await self._handle_compact_command(message, sender_id, chat_id)
+            return
+
         # Build content from text and/or media
         content_parts = []
         media_paths = []
@@ -320,3 +326,73 @@ class TelegramChannel(BaseChannel):
 
         type_map = {"image": ".jpg", "voice": ".ogg", "audio": ".mp3", "file": ""}
         return type_map.get(media_type, "")
+
+    async def _handle_compact_command(
+        self, message, sender_id: str, chat_id: int
+    ) -> None:
+        """Handle /compact command for session compaction."""
+        if not self._app:
+            logger.warning("Telegram bot not running")
+            return
+
+        # Parse command: /compact [keep_last] [--silent | --verbose]
+        parts = message.text.strip().split()
+        keep_last = 50  # default
+        silent = True  # default
+
+        i = 1  # skip "/compact"
+        while i < len(parts):
+            if parts[i] == "--silent":
+                silent = True
+            elif parts[i] == "--verbose" or parts[i] == "--no-silent":
+                silent = False
+            elif parts[i].isdigit():
+                keep_last = int(parts[i])
+            else:
+                # Try to parse as number anyway
+                try:
+                    keep_last = int(parts[i])
+                except ValueError:
+                    pass
+            i += 1
+
+        try:
+            # Import config loader here to avoid circular deps
+            from nanobot.config.loader import load_config
+
+            config = load_config()
+            sm = SessionManager(config.workspace_path)
+
+            # Build session key from chat_id (format: "telegram:chat_id")
+            session_key = f"telegram:{chat_id}"
+
+            # Run compaction
+            compacted = sm.compact_session(session_key, keep_last=keep_last)
+
+            if compacted > 0:
+                # Get updated session for telemetry
+                session = sm.get_or_create(session_key)
+                telemetry = session.metadata.get("compactions", {})
+
+                status_msg = f"🧹 Compaction complete!\n"
+                status_msg += f"  Compacted: {compacted} messages\n"
+                status_msg += f"  Kept: {keep_last} recent messages\n"
+                if telemetry:
+                    status_msg += f"  Total compactions: {telemetry.get('total', 1)}\n"
+                    status_msg += f"  Messages compacted (total): {telemetry.get('messages_compacted', compacted)}"
+
+                await self._app.bot.send_message(chat_id=chat_id, text=status_msg)
+            else:
+                await self._app.bot.send_message(
+                    chat_id=chat_id, text="ℹ️ No messages to compact (history is short enough)"
+                )
+
+            logger.info(f"Compaction command from {sender_id}: compacted {compacted} messages")
+
+        except Exception as e:
+            logger.error(f"Error handling /compact command: {e}")
+            error_msg = f"❌ Compaction failed: {str(e)[:100]}"
+            try:
+                await self._app.bot.send_message(chat_id=chat_id, text=error_msg)
+            except Exception as e2:
+                logger.error(f"Failed to send error message: {e2}")

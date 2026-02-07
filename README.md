@@ -195,6 +195,26 @@ debot config compaction-model "anthropic/claude-opus-4-5" --keep-last 40
 /compact 30 --verbose # Show detailed results
 ```
 
+## 🚀 Intelligent Model Router
+
+debot includes a **built-in intelligent router** (powered by Rust) that automatically selects the best LLM model based on task complexity. This saves costs by routing simple queries to cheaper models while reserving powerful models for complex reasoning tasks.
+
+**How it works:**
+- Analyzes incoming prompts across 14 dimensions: reasoning difficulty, code complexity, multi-step reasoning, token count, creativity, technical depth, and more.
+- Scores each dimension using heuristic patterns and keyword detection.
+- Maps the overall complexity score to a tier: `SIMPLE` → `MEDIUM` → `COMPLEX` → `REASONING`.
+- Routes to the configured model for that tier (customizable).
+
+**Default tier-to-model mapping:**
+| Tier | Model | Cost |
+|------|-------|------|
+| `SIMPLE` | `openai/gpt-3.5-turbo` | Low |
+| `MEDIUM` | `openai/gpt-4o-mini` | Medium |
+| `COMPLEX` | `anthropic/claude-opus-4-5` | Medium-High |
+| `REASONING` | `openai/o3` | Highest |
+
+The router runs automatically — no configuration needed. You can customize the tier-to-model mapping by editing the Rust router config (see `rust/src/router/config.rs`).
+
 ## 🧠 Long-term memory
 
 debot stores persistent memory under your workspace at `memory/` (by default your workspace is `~/.debot/workspace`). The memory system supports:
@@ -332,6 +352,54 @@ debot gateway
 ```
 
 </details>
+
+## 🎯 Built-in Skills
+
+debot comes with a set of powerful built-in skills to extend your agent's capabilities:
+
+| Skill | Description |
+|-------|-------------|
+| **github** 🐙 | Interact with GitHub using the `gh` CLI. Manage PRs, issues, CI runs, and advanced queries. Requires: `gh` binary |
+| **weather** ⛅ | Get weather info using wttr.in and Open-Meteo APIs. |
+| **summarize** 📄 | Summarize URLs, files, and YouTube videos. |
+| **tmux** 🖥️ | Remote-control tmux sessions for terminal automation. |
+| **humanizer** 🤖 | Humanize code, text, and outputs for better readability. |
+| **skill-creator** 🔧 | Create new custom skills programmatically. |
+
+**Usage:**
+
+```bash
+# List available skills
+debot skills list
+
+# List system (built-in) and workspace skills as JSON
+debot skills list --json
+
+# Install a system skill to your workspace
+debot skills install github
+debot skills install weather
+
+# Filter skills by name
+debot skills list --query github
+```
+
+**Create a custom skill:**
+
+Each skill is a directory with a `SKILL.md` file containing YAML frontmatter and instructions:
+
+```yaml
+---
+name: my-skill
+description: "A custom skill that does X"
+metadata: {"debot": {"emoji": "✨", "requires": {"bins": ["tool"]}}}
+---
+
+# My Custom Skill
+
+Instructions for the agent on how to use this skill...
+```
+
+Place your skill in `~/.debot/workspace/skills/<skill-name>/SKILL.md` and it will be automatically available to your agent.
 
 ## ⚙️ Configuration
 

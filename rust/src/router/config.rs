@@ -21,9 +21,9 @@ pub fn default_weights() -> HashMap<&'static str, f32> {
 
 pub fn tier_model_map() -> HashMap<&'static str, &'static str> {
     let mut m = HashMap::new();
-    m.insert("SIMPLE", "deepseek/deepseek-chat");
+    m.insert("SIMPLE", "openai/gpt-3.5-turbo");
     m.insert("MEDIUM", "openai/gpt-4o-mini");
-    m.insert("COMPLEX", "anthropic/claude-sonnet-4");
+    m.insert("COMPLEX", "anthropic/claude-opus-4-5");
     m.insert("REASONING", "openai/o3");
     m
 }

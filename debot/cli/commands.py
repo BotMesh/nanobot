@@ -619,12 +619,12 @@ def skills_install(
             console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1)
     else:
-        # System-installed skills: currently only 'find-skills' is supported
-        console.print("Installing system skill 'find-skills'...")
+        # System-installed skills: install the named bundled skill (if available)
+        console.print(f"Installing system skill '{name_or_url}'...")
         try:
             from debot.skills.installer import install_from_system
 
-            installed = install_from_system("find-skills", workspace=ws)
+            installed = install_from_system(name_or_url, workspace=ws)
             console.print(f"[green]✓[/green] Installed skill to {installed}")
         except Exception as e:
             console.print(f"[red]Error:[/red] {e}")

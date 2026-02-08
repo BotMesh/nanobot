@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use serde_json::json;
 
+use crate::router::metrics;
 use crate::router::scorer;
 use crate::router::selector;
 
@@ -8,6 +9,7 @@ use crate::router::selector;
 fn route_text(prompt: &str, _max_tokens: usize) -> PyResult<String> {
     let scores = scorer::score_text(prompt);
     let (model, tier, confidence, cost, explain) = selector::select_model(&scores);
+    metrics::record_decision(&model, &tier, confidence, cost);
 
     let decision = json!({
         "model": model,
@@ -23,6 +25,9 @@ fn route_text(prompt: &str, _max_tokens: usize) -> PyResult<String> {
 
 pub fn pybindings(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(route_text, m)?)?;
+    m.add_function(wrap_pyfunction!(metrics::get_router_metrics, m)?)?;
+    m.add_function(wrap_pyfunction!(metrics::reset_router_metrics, m)?)?;
+    m.add_function(wrap_pyfunction!(metrics::get_router_metrics_count, m)?)?;
     Ok(())
 }
 

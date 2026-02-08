@@ -238,6 +238,13 @@ class AgentLoop:
                     try:
                         dec = json.loads(decision_json)
                         chosen_model = dec.get("model", self.model)
+                        logger.info(
+                            "Router: tier={} model={} confidence={:.2f} cost=${:.2f}/M",
+                            dec.get("tier", "?"),
+                            chosen_model,
+                            dec.get("confidence", 0),
+                            dec.get("cost_estimate", 0),
+                        )
                     except Exception:
                         chosen_model = self.model
             except Exception:

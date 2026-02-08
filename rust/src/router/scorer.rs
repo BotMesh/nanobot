@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 pub fn score_text(text: &str) -> HashMap<&'static str, f32> {
     let mut scores = HashMap::new();
@@ -25,7 +26,9 @@ pub fn score_text(text: &str) -> HashMap<&'static str, f32> {
     }
 
     // Multi-step patterns
-    let multistep_re = Regex::new(r"first\b|then\b|step \d").unwrap();
+    static MULTISTEP_RE: OnceLock<Regex> = OnceLock::new();
+    let multistep_re =
+        MULTISTEP_RE.get_or_init(|| Regex::new(r"first\b|then\b|step \d").unwrap());
     let multistep = if multistep_re.is_match(&lower) {
         1.0
     } else {
@@ -96,12 +99,6 @@ pub fn score_text(text: &str) -> HashMap<&'static str, f32> {
     scores.insert("format", format);
     scores.insert("technical", technical);
     scores.insert("negation", negation);
-
-    // Fill remaining dims with zero defaults
-    scores.insert("simple", 0.0);
-    scores.insert("constraint", 0.0);
-    scores.insert("domain", 0.0);
-    scores.insert("reference", 0.0);
 
     scores
 }

@@ -454,6 +454,21 @@ def agent(
                     response = await agent_loop.process_direct(user_input, session_id)
                     console.print(f"\n{__logo__} {response}\n")
                 except KeyboardInterrupt:
+                    # Show session routing summary
+                    try:
+                        import debot_rust
+
+                        metrics_json = debot_rust.get_router_metrics()
+                        import json as _json
+
+                        metrics = _json.loads(metrics_json)
+                        if metrics["total_calls"] > 0:
+                            console.print(
+                                f"\n[dim]Session: {metrics['total_calls']} routed calls, "
+                                f"est. cost ${metrics['total_estimated_cost']:.4f}/M tokens[/dim]"
+                            )
+                    except Exception:
+                        pass
                     console.print("\nGoodbye!")
                     break
 
@@ -893,6 +908,132 @@ def status():
             else "[dim]not set[/dim]"
         )
         console.print(f"vLLM/Local: {vllm_status}")
+
+        # Router status
+        try:
+            import debot_rust
+
+            console.print(f"Router: [green]✓ available[/green]")
+            try:
+                import json as _json
+
+                metrics_json = debot_rust.get_router_metrics()
+                metrics = _json.loads(metrics_json)
+                if metrics["total_calls"] > 0:
+                    console.print(f"  Routed calls: {metrics['total_calls']}")
+                    console.print(f"  Est. cost: ${metrics['total_estimated_cost']:.4f}/M tokens")
+                    for tier, count in sorted(metrics.get("tier_counts", {}).items()):
+                        console.print(f"  {tier}: {count} calls")
+            except Exception:
+                pass
+        except ImportError:
+            console.print("Router: [dim]not available (Rust extension not built)[/dim]")
+
+
+# ============================================================================
+# Router Commands
+# ============================================================================
+
+
+router_app = typer.Typer(help="Router information and metrics")
+app.add_typer(router_app, name="router")
+
+
+@router_app.command("test")
+def router_test(
+    prompt: str = typer.Argument(..., help="Prompt text to route"),
+):
+    """Test the router with a prompt and show the decision."""
+    import json as _json
+
+    try:
+        import debot_rust
+
+        decision_json = debot_rust.route_text(prompt, 4096)
+        dec = _json.loads(decision_json)
+
+        # Decision summary
+        tier = dec["tier"]
+        tier_colors = {"SIMPLE": "green", "MEDIUM": "yellow", "COMPLEX": "red", "REASONING": "magenta"}
+        tier_color = tier_colors.get(tier, "white")
+
+        console.print(f"\nModel:      [cyan]{dec['model']}[/cyan]")
+        console.print(f"Tier:       [{tier_color}]{tier}[/{tier_color}]")
+        console.print(f"Confidence: {dec['confidence']:.3f}")
+        console.print(f"Cost:       ${dec['cost_estimate']:.2f}/M tokens")
+        console.print(f"Explain:    {dec['explain']}")
+
+        # Dimension scores table
+        scores = dec.get("scores", {})
+        if scores:
+            console.print()
+            table = Table(title="Dimension Scores")
+            table.add_column("Dimension", style="cyan", min_width=12)
+            table.add_column("Score", justify="right", min_width=6)
+            table.add_column("", min_width=20)
+
+            for dim, score in sorted(scores.items(), key=lambda x: -x[1]):
+                bar_len = int(score * 20)
+                bar = "[green]" + "\u2588" * bar_len + "[/green]" + "[dim]" + "\u2591" * (20 - bar_len) + "[/dim]"
+                table.add_row(dim, f"{score:.3f}", bar)
+
+            console.print(table)
+
+    except ImportError:
+        console.print("[red]Router not available (Rust extension not built)[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@router_app.command("metrics")
+def router_metrics():
+    """Show router metrics for the current session."""
+    import json as _json
+
+    try:
+        import debot_rust
+
+        metrics_json = debot_rust.get_router_metrics()
+        metrics = _json.loads(metrics_json)
+
+        if metrics["total_calls"] == 0:
+            console.print("No routing decisions recorded yet.")
+            return
+
+        # Summary table
+        table = Table(title="Router Metrics")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green", justify="right")
+
+        table.add_row("Total calls", str(metrics["total_calls"]))
+        table.add_row("Est. cost", f"${metrics['total_estimated_cost']:.4f}/M tokens")
+
+        # Tier breakdown
+        total = metrics["total_calls"]
+        for tier, count in sorted(metrics.get("tier_counts", {}).items()):
+            pct = count / total * 100 if total > 0 else 0
+            table.add_row(f"  {tier}", f"{count} ({pct:.0f}%)")
+
+        # Model breakdown
+        table.add_section()
+        for model, count in sorted(metrics.get("model_counts", {}).items()):
+            pct = count / total * 100 if total > 0 else 0
+            table.add_row(f"  {model}", f"{count} ({pct:.0f}%)")
+
+        console.print(table)
+
+        # Last decision
+        last = metrics.get("last_decision")
+        if last:
+            console.print(
+                f"\nLast: [cyan]{last['model']}[/cyan] "
+                f"(tier={last['tier']}, confidence={last['confidence']:.2f})"
+            )
+
+    except ImportError:
+        console.print("[red]Router not available (Rust extension not built)[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
 
 
 if __name__ == "__main__":

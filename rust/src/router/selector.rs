@@ -21,12 +21,16 @@ pub fn select_model(scores: &HashMap<&str, f32>) -> (String, String, f32, f64, S
         weighted
     };
 
-    // simple mapping
-    let tier = if normalized > 0.85 {
+    // Tier thresholds calibrated against real prompt score distribution:
+    //   SIMPLE prompts:    0.02 – 0.07
+    //   MEDIUM prompts:    0.06 – 0.21
+    //   COMPLEX prompts:   0.22 – 0.35
+    //   REASONING prompts: 0.22 – 0.40+
+    let tier = if normalized > 0.30 {
         "REASONING"
-    } else if normalized > 0.6 {
+    } else if normalized > 0.20 {
         "COMPLEX"
-    } else if normalized > 0.3 {
+    } else if normalized > 0.08 {
         "MEDIUM"
     } else {
         "SIMPLE"

@@ -913,7 +913,7 @@ def status():
         try:
             import debot_rust
 
-            console.print(f"Router: [green]✓ available[/green]")
+            console.print("Router: [green]✓ available[/green]")
             try:
                 import json as _json
 
@@ -954,7 +954,12 @@ def router_test(
 
         # Decision summary
         tier = dec["tier"]
-        tier_colors = {"SIMPLE": "green", "MEDIUM": "yellow", "COMPLEX": "red", "REASONING": "magenta"}
+        tier_colors = {
+            "SIMPLE": "green",
+            "MEDIUM": "yellow",
+            "COMPLEX": "red",
+            "REASONING": "magenta",
+        }
         tier_color = tier_colors.get(tier, "white")
 
         console.print(f"\nModel:      [cyan]{dec['model']}[/cyan]")
@@ -974,7 +979,14 @@ def router_test(
 
             for dim, score in sorted(scores.items(), key=lambda x: -x[1]):
                 bar_len = int(score * 20)
-                bar = "[green]" + "\u2588" * bar_len + "[/green]" + "[dim]" + "\u2591" * (20 - bar_len) + "[/dim]"
+                bar = (
+                    "[green]"
+                    + "\u2588" * bar_len
+                    + "[/green]"
+                    + "[dim]"
+                    + "\u2591" * (20 - bar_len)
+                    + "[/dim]"
+                )
                 table.add_row(dim, f"{score:.3f}", bar)
 
             console.print(table)

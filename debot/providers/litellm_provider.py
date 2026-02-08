@@ -123,10 +123,25 @@ class LiteLLMProvider(LLMProvider):
             response = await acompletion(**kwargs)
             return self._parse_response(response)
         except Exception as e:
-            # Return error as content for graceful handling
+            err_str = str(e).lower()
+            # Classify context-window / token-limit errors for auto-escalation
+            context_keywords = (
+                "context_length",
+                "context window",
+                "maximum context",
+                "token limit",
+                "too many tokens",
+                "max_tokens",
+                "input too long",
+                "reduce your prompt",
+            )
+            if any(kw in err_str for kw in context_keywords):
+                finish_reason = "context_length_exceeded"
+            else:
+                finish_reason = "error"
             return LLMResponse(
                 content=f"Error calling LLM: {str(e)}",
-                finish_reason="error",
+                finish_reason=finish_reason,
             )
 
     def _parse_response(self, response: Any) -> LLMResponse:

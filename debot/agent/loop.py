@@ -230,14 +230,18 @@ class AgentLoop:
 
             # Call Rust router (if available) to choose model, then call LLM
             chosen_model = self.model
+            current_tier = None
+            _debot_rust = None
             try:
-                import debot_rust
+                import debot_rust as _debot_rust_mod
 
-                decision_json = debot_rust.route_text(msg.content, max_tokens)
+                _debot_rust = _debot_rust_mod
+                decision_json = _debot_rust.route_text(msg.content, max_tokens)
                 if decision_json:
                     try:
                         dec = json.loads(decision_json)
                         chosen_model = dec.get("model", self.model)
+                        current_tier = dec.get("tier")
                         logger.info(
                             "Router: tier={} model={} confidence={:.2f} cost=${:.2f}/M",
                             dec.get("tier", "?"),
@@ -251,9 +255,65 @@ class AgentLoop:
                 # Router not available or failed; fall back to default model
                 chosen_model = self.model
 
+            # Pre-check: escalate if estimated tokens exceed model context window
+            if _debot_rust and current_tier:
+                try:
+                    estimated_tokens = sum(len(m.get("content", "") or "") for m in messages) // 4
+                    ctx_limit = _debot_rust.get_context_length(chosen_model)
+                    while ctx_limit > 0 and estimated_tokens > int(ctx_limit * 0.9):
+                        fb_json = _debot_rust.get_fallback_model(current_tier)
+                        if not fb_json:
+                            break
+                        fb = json.loads(fb_json)
+                        logger.warning(
+                            "Pre-check: ~{} tokens exceeds {} context ({}), escalating → {} ({})",
+                            estimated_tokens,
+                            chosen_model,
+                            ctx_limit,
+                            fb["model"],
+                            fb["tier"],
+                        )
+                        chosen_model = fb["model"]
+                        current_tier = fb["tier"]
+                        ctx_limit = _debot_rust.get_context_length(chosen_model)
+                except Exception:
+                    pass  # Pre-check is best-effort
+
+            # Call LLM with escalation on failure
             response = await self.provider.chat(
                 messages=messages, tools=self.tools.get_definitions(), model=chosen_model
             )
+
+            # Auto-escalate: if model failed, try next tier (up to 3 escalations)
+            if (
+                _debot_rust
+                and current_tier
+                and response.finish_reason in ("error", "context_length_exceeded")
+            ):
+                for _esc in range(3):
+                    fb_json = _debot_rust.get_fallback_model(current_tier)
+                    if not fb_json:
+                        break
+                    fb = json.loads(fb_json)
+                    logger.warning(
+                        "Escalating: {} ({}) failed [{}] → {} ({})",
+                        chosen_model,
+                        current_tier,
+                        response.finish_reason,
+                        fb["model"],
+                        fb["tier"],
+                    )
+                    try:
+                        _debot_rust.record_escalation()
+                    except Exception:
+                        pass
+                    chosen_model = fb["model"]
+                    current_tier = fb["tier"]
+                    response = await self.provider.chat(
+                        messages=messages, tools=self.tools.get_definitions(), model=chosen_model
+                    )
+                    if response.finish_reason not in ("error", "context_length_exceeded"):
+                        break
 
             # Handle tool calls
             if response.has_tool_calls:

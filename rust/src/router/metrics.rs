@@ -13,6 +13,7 @@ struct RoutingRecord {
 
 struct RouterMetrics {
     total_calls: u64,
+    escalation_count: u64,
     tier_counts: HashMap<String, u64>,
     model_counts: HashMap<String, u64>,
     total_estimated_cost: f64,
@@ -23,6 +24,7 @@ impl Default for RouterMetrics {
     fn default() -> Self {
         Self {
             total_calls: 0,
+            escalation_count: 0,
             tier_counts: HashMap::new(),
             model_counts: HashMap::new(),
             total_estimated_cost: 0.0,
@@ -57,12 +59,22 @@ pub fn record_decision(model: &str, tier: &str, confidence: f32, cost_estimate: 
     });
 }
 
+/// Record a tier escalation event.
+#[pyfunction]
+pub fn record_escalation() -> PyResult<()> {
+    let Ok(mut m) = get_metrics().lock() else {
+        return Ok(());
+    };
+    m.escalation_count += 1;
+    Ok(())
+}
+
 /// Return full metrics summary as JSON.
 #[pyfunction]
 pub fn get_router_metrics() -> PyResult<String> {
-    let m = get_metrics().lock().map_err(|e| {
-        pyo3::exceptions::PyRuntimeError::new_err(format!("lock poisoned: {e}"))
-    })?;
+    let m = get_metrics()
+        .lock()
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("lock poisoned: {e}")))?;
 
     let last_decision = m.records.last().map(|r| {
         json!({
@@ -75,6 +87,7 @@ pub fn get_router_metrics() -> PyResult<String> {
 
     let result = json!({
         "total_calls": m.total_calls,
+        "escalation_count": m.escalation_count,
         "tier_counts": m.tier_counts,
         "model_counts": m.model_counts,
         "total_estimated_cost": m.total_estimated_cost,
@@ -86,9 +99,9 @@ pub fn get_router_metrics() -> PyResult<String> {
 /// Reset all metrics (useful for tests or session boundaries).
 #[pyfunction]
 pub fn reset_router_metrics() -> PyResult<()> {
-    let mut m = get_metrics().lock().map_err(|e| {
-        pyo3::exceptions::PyRuntimeError::new_err(format!("lock poisoned: {e}"))
-    })?;
+    let mut m = get_metrics()
+        .lock()
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("lock poisoned: {e}")))?;
     *m = RouterMetrics::default();
     Ok(())
 }
@@ -96,8 +109,8 @@ pub fn reset_router_metrics() -> PyResult<()> {
 /// Lightweight: return just the total call count.
 #[pyfunction]
 pub fn get_router_metrics_count() -> PyResult<u64> {
-    let m = get_metrics().lock().map_err(|e| {
-        pyo3::exceptions::PyRuntimeError::new_err(format!("lock poisoned: {e}"))
-    })?;
+    let m = get_metrics()
+        .lock()
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("lock poisoned: {e}")))?;
     Ok(m.total_calls)
 }

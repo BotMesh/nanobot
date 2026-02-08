@@ -27,8 +27,7 @@ pub fn score_text(text: &str) -> HashMap<&'static str, f32> {
 
     // Multi-step patterns
     static MULTISTEP_RE: OnceLock<Regex> = OnceLock::new();
-    let multistep_re =
-        MULTISTEP_RE.get_or_init(|| Regex::new(r"first\b|then\b|step \d").unwrap());
+    let multistep_re = MULTISTEP_RE.get_or_init(|| Regex::new(r"first\b|then\b|step \d").unwrap());
     let multistep = if multistep_re.is_match(&lower) {
         1.0
     } else {

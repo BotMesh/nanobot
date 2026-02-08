@@ -29,11 +29,6 @@ pub const TIER_ORDER: [&str; 4] = ["SIMPLE", "MEDIUM", "COMPLEX", "REASONING"];
 
 /// Returns the next higher tier for escalation, or None if already at top.
 pub fn next_tier(current: &str) -> Option<&'static str> {
-    match current {
-        "SIMPLE" => Some("MEDIUM"),
-        "MEDIUM" => Some("COMPLEX"),
-        "COMPLEX" => Some("REASONING"),
-        "REASONING" => None,
-        _ => None,
-    }
+    let idx = TIER_ORDER.iter().position(|t| *t == current)?;
+    TIER_ORDER.get(idx + 1).copied()
 }

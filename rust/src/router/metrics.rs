@@ -82,6 +82,7 @@ pub fn get_router_metrics() -> PyResult<String> {
             "tier": r.tier,
             "confidence": r.confidence,
             "cost_estimate": r.cost_estimate,
+            "timestamp_ms": r.timestamp_ms,
         })
     });
 

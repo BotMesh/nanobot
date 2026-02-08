@@ -68,8 +68,9 @@ class LiteLLMProvider(LLMProvider):
             elif "groq" in default_model:
                 os.environ["GROQ_API_KEY"] = api_key
 
-        if api_base:
-            litellm.api_base = api_base
+        # Do NOT set litellm.api_base globally — it would route ALL calls
+        # (including cross-provider fallback) through OpenRouter.
+        # api_base is passed per-call in chat() kwargs instead.
 
         # Disable LiteLLM logging noise
         litellm.suppress_debug_info = True

@@ -180,9 +180,7 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
         Returns:
             Updated message list.
         """
-        messages.append(
-            {"role": "tool", "tool_call_id": tool_call_id, "name": tool_name, "content": result}
-        )
+        messages.append({"role": "tool", "tool_call_id": tool_call_id, "name": tool_name, "content": result})
         return messages
 
     def add_assistant_message(

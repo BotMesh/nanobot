@@ -154,9 +154,7 @@ class CronService:
         self._recompute_next_runs()
         self._save_store()
         self._arm_timer()
-        logger.info(
-            f"Cron service started with {len(self._store.jobs if self._store else [])} jobs"
-        )
+        logger.info(f"Cron service started with {len(self._store.jobs if self._store else [])} jobs")
 
     def stop(self) -> None:
         """Stop the cron service."""
@@ -178,9 +176,7 @@ class CronService:
         """Get the earliest next run time across all jobs."""
         if not self._store:
             return None
-        times = [
-            j.state.next_run_at_ms for j in self._store.jobs if j.enabled and j.state.next_run_at_ms
-        ]
+        times = [j.state.next_run_at_ms for j in self._store.jobs if j.enabled and j.state.next_run_at_ms]
         return min(times) if times else None
 
     def _arm_timer(self) -> None:
@@ -209,9 +205,7 @@ class CronService:
 
         now = _now_ms()
         due_jobs = [
-            j
-            for j in self._store.jobs
-            if j.enabled and j.state.next_run_at_ms and now >= j.state.next_run_at_ms
+            j for j in self._store.jobs if j.enabled and j.state.next_run_at_ms and now >= j.state.next_run_at_ms
         ]
 
         for job in due_jobs:

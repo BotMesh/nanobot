@@ -113,9 +113,7 @@ class WebFetchTool(Tool):
     def __init__(self, max_chars: int = 50000):
         self.max_chars = max_chars
 
-    async def execute(
-        self, url: str, extractMode: str = "markdown", maxChars: int | None = None, **kwargs: Any
-    ) -> str:
+    async def execute(self, url: str, extractMode: str = "markdown", maxChars: int | None = None, **kwargs: Any) -> str:
         from readability import Document
 
         max_chars = maxChars or self.max_chars
@@ -126,9 +124,7 @@ class WebFetchTool(Tool):
             return json.dumps({"error": f"URL validation failed: {error_msg}", "url": url})
 
         try:
-            async with httpx.AsyncClient(
-                follow_redirects=True, max_redirects=MAX_REDIRECTS, timeout=30.0
-            ) as client:
+            async with httpx.AsyncClient(follow_redirects=True, max_redirects=MAX_REDIRECTS, timeout=30.0) as client:
                 r = await client.get(url, headers={"User-Agent": USER_AGENT})
                 r.raise_for_status()
 
@@ -140,11 +136,7 @@ class WebFetchTool(Tool):
             # HTML
             elif "text/html" in ctype or r.text[:256].lower().startswith(("<!doctype", "<html")):
                 doc = Document(r.text)
-                content = (
-                    self._to_markdown(doc.summary())
-                    if extractMode == "markdown"
-                    else _strip_tags(doc.summary())
-                )
+                content = self._to_markdown(doc.summary()) if extractMode == "markdown" else _strip_tags(doc.summary())
                 text = f"# {doc.title()}\n\n{content}" if doc.title() else content
                 extractor = "readability"
             else:
@@ -183,9 +175,7 @@ class WebFetchTool(Tool):
             text,
             flags=re.I,
         )
-        text = re.sub(
-            r"<li[^>]*>([\s\S]*?)</li>", lambda m: f"\n- {_strip_tags(m[1])}", text, flags=re.I
-        )
+        text = re.sub(r"<li[^>]*>([\s\S]*?)</li>", lambda m: f"\n- {_strip_tags(m[1])}", text, flags=re.I)
         text = re.sub(r"</(p|div|section|article)>", "\n\n", text, flags=re.I)
         text = re.sub(r"<(br|hr)\s*/?>", "\n", text, flags=re.I)
         return _normalize(_strip_tags(text))

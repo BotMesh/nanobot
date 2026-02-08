@@ -51,9 +51,7 @@ class MessageTool(Tool):
             "required": ["content"],
         }
 
-    async def execute(
-        self, content: str, channel: str | None = None, chat_id: str | None = None, **kwargs: Any
-    ) -> str:
+    async def execute(self, content: str, channel: str | None = None, chat_id: str | None = None, **kwargs: Any) -> str:
         channel = channel or self._default_channel
         chat_id = chat_id or self._default_chat_id
 

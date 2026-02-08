@@ -201,9 +201,7 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
         )
 
         await self.bus.publish_inbound(msg)
-        logger.debug(
-            f"Subagent [{task_id}] announced result to {origin['channel']}:{origin['chat_id']}"
-        )
+        logger.debug(f"Subagent [{task_id}] announced result to {origin['channel']}:{origin['chat_id']}")
 
     def _build_subagent_prompt(self, task: str) -> str:
         """Build a focused system prompt for the subagent."""

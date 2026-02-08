@@ -28,9 +28,7 @@ class LiteLLMProvider(LLMProvider):
         self.default_model = default_model
 
         # Detect OpenRouter by api_key prefix or explicit api_base
-        self.is_openrouter = (api_key and api_key.startswith("sk-or-")) or (
-            api_base and "openrouter" in api_base
-        )
+        self.is_openrouter = (api_key and api_key.startswith("sk-or-")) or (api_base and "openrouter" in api_base)
 
         # Track if using custom endpoint (vLLM, etc.)
         self.is_vllm = bool(api_base) and not self.is_openrouter
@@ -114,9 +112,7 @@ class LiteLLMProvider(LLMProvider):
         # For Zhipu/Z.ai, ensure prefix is present
         # Handle cases like "glm-4.7-flash" -> "zhipu/glm-4.7-flash"
         if ("glm" in model.lower() or "zhipu" in model.lower()) and not (
-            model.startswith("zhipu/")
-            or model.startswith("zai/")
-            or model.startswith("openrouter/")
+            model.startswith("zhipu/") or model.startswith("zai/") or model.startswith("openrouter/")
         ):
             model = f"zhipu/{model}"
 
@@ -155,13 +151,22 @@ class LiteLLMProvider(LLMProvider):
             # words like "max_tokens" (e.g. "requires more credits, or fewer
             # max_tokens"), so must be checked before context keywords.
             billing_keywords = (
-                "credits", "afford", "402", "billing",
-                "payment", "quota", "budget",
+                "credits",
+                "afford",
+                "402",
+                "billing",
+                "payment",
+                "quota",
+                "budget",
             )
             context_keywords = (
-                "context_length", "context window", "maximum context",
-                "token limit", "too many tokens",
-                "input too long", "reduce your prompt",
+                "context_length",
+                "context window",
+                "maximum context",
+                "token limit",
+                "too many tokens",
+                "input too long",
+                "reduce your prompt",
             )
             if any(kw in err_str for kw in billing_keywords):
                 finish_reason = "insufficient_credits"

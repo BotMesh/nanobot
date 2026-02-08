@@ -42,29 +42,6 @@ If you need to specify a particular Python executable for maturin builds, set `P
   <img src="debot_arch.png" alt="debot architecture" width="800">
 </p>
 
-## ✨ Features
-
-<table align="center">
-  <tr align="center">
-    <th><p align="center">📈 24/7 Real-Time Market Analysis</p></th>
-    <th><p align="center">🚀 Full-Stack Software Engineer</p></th>
-    <th><p align="center">📅 Smart Daily Routine Manager</p></th>
-    <th><p align="center">📚 Personal Knowledge Assistant</p></th>
-  </tr>
-  <tr>
-    <td align="center"><p align="center"><img src="case/search.gif" width="180" height="400"></p></td>
-    <td align="center"><p align="center"><img src="case/code.gif" width="180" height="400"></p></td>
-    <td align="center"><p align="center"><img src="case/scedule.gif" width="180" height="400"></p></td>
-    <td align="center"><p align="center"><img src="case/memory.gif" width="180" height="400"></p></td>
-  </tr>
-  <tr>
-    <td align="center">Discovery • Insights • Trends</td>
-    <td align="center">Develop • Deploy • Scale</td>
-    <td align="center">Schedule • Automate • Organize</td>
-    <td align="center">Learn • Memory • Reasoning</td>
-  </tr>
-</table>
-
 ### Core Capabilities
 
 | Category | What Debot Can Do |
@@ -123,6 +100,12 @@ debot onboard
   "providers": {
     "openrouter": {
       "apiKey": "sk-or-v1-xxx"
+    },
+    "anthropic": {
+      "apiKey": "sk-ant-xxx"
+    },
+    "groq": {
+      "apiKey": "gsk_xxx"
     }
   },
   "agents": {
@@ -135,6 +118,9 @@ debot onboard
   }
 }
 ```
+
+> [!TIP]
+> Adding multiple provider keys enables **cross-provider fallback**. If one provider's credits run out, Debot automatically routes to another.
 
 
 **3. Chat**
@@ -230,6 +216,17 @@ Debot includes a **built-in intelligent router** (powered by Rust) that automati
 | `REASONING` | `openai/o3` | $8.00 |
 
 The router runs automatically — no configuration needed. You can customize the tier-to-model mapping by editing the Rust router config (see `rust/src/router/config.rs`).
+
+**Automatic Fallback & Escalation:**
+
+When a model fails, Debot doesn't just give up — it automatically retries with alternative models:
+
+1. **Pre-check**: Before calling the API, estimates token count and compares against the model's context window. If the prompt is too large, skips straight to a bigger model.
+2. **Billing fallback (402 / insufficient credits)**: Tries same-tier alternatives from cheaper providers first (e.g. Groq free tier → DeepSeek → OpenAI), then escalates to the next tier.
+3. **Context window exceeded**: Escalates to the next tier with a larger context window.
+4. **Cross-provider routing**: If your OpenRouter credits run out, Debot automatically routes to providers where you have direct API keys (Anthropic, Groq, OpenAI, etc.).
+
+> Configure multiple provider keys in `~/.debot/config.json` to enable cross-provider fallback — see [Configuration](#%EF%B8%8F-configuration).
 
 **Cost savings benchmark:**
 
@@ -506,8 +503,17 @@ Config file: `~/.debot/config.json`
     "openrouter": {
       "apiKey": "sk-or-v1-xxx"
     },
+    "anthropic": {
+      "apiKey": "sk-ant-xxx"
+    },
+    "openai": {
+      "apiKey": "sk-xxx"
+    },
     "groq": {
       "apiKey": "gsk_xxx"
+    },
+    "gemini": {
+      "apiKey": "AIza-xxx"
     }
   },
   "channels": {
@@ -614,6 +620,36 @@ docker pull ghcr.io/BotMesh/debot:v1.0.0
 
 For more info, see [Container Publishing Guide](./.github/CONTAINER_PUBLISHING.md)
 
+
+## 🛠️ Development
+
+A `Makefile` is provided for common development tasks:
+
+```bash
+make install       # Install debot (builds Rust extension via maturin)
+make build         # Build the Rust extension only (release mode)
+make test          # Build + install + run pytest
+make lint          # Run ruff linter
+```
+
+**First-time setup:**
+
+```bash
+git clone https://github.com/BotMesh/debot.git
+cd debot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install patchelf     # Linux only
+make install
+```
+
+**Running tests:**
+
+```bash
+make test
+```
+
+This builds the Rust extension, installs the wheel, installs dev dependencies, and runs the full test suite.
 
 ## 🤝 Contribute & Roadmap
 

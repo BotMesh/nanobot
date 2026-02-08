@@ -178,9 +178,7 @@ class MemoryStore:
         scored.sort(key=lambda x: x[0], reverse=True)
         results = []
         for score, e in scored[:max_results]:
-            results.append(
-                {"path": e.get("path", ""), "snippet": e.get("text", ""), "score": score}
-            )
+            results.append({"path": e.get("path", ""), "snippet": e.get("text", ""), "score": score})
         return results
 
 

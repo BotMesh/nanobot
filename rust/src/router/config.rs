@@ -33,43 +33,45 @@ pub fn next_tier(current: &str) -> Option<&'static str> {
     TIER_ORDER.get(idx + 1).copied()
 }
 
-/// Returns the next cheaper tier for downgrade, or None if already at bottom.
-pub fn prev_tier(current: &str) -> Option<&'static str> {
-    let idx = TIER_ORDER.iter().position(|t| *t == current)?;
-    if idx == 0 {
-        None
-    } else {
-        Some(TIER_ORDER[idx - 1])
-    }
-}
-
 /// Alternative models per tier, sorted by cost ascending (cheapest first).
 /// Includes models from multiple providers for cross-provider billing fallback.
 pub fn tier_alternatives() -> HashMap<&'static str, Vec<&'static str>> {
     let mut m = HashMap::new();
-    m.insert("SIMPLE", vec![
-        "groq/llama-3.3-70b-versatile", // free tier
-        "deepseek/deepseek-chat",       // $0.42
-        "openai/gpt-4o-mini",           // $0.60
-        "openai/gpt-3.5-turbo",         // $1.50
-    ]);
-    m.insert("MEDIUM", vec![
-        "groq/llama-3.3-70b-versatile", // free tier
-        "deepseek/deepseek-chat",       // $0.42
-        "openai/gpt-4o-mini",           // $0.60
-        "minimax/minimax-m2",           // $1.20
-    ]);
-    m.insert("COMPLEX", vec![
-        "groq/llama-3.3-70b-versatile", // free tier (best-effort)
-        "anthropic/claude-sonnet-4-5",  // $15.00
-        "openai/gpt-4o",               // $10.00
-        "anthropic/claude-opus-4-5",    // $25.00
-    ]);
-    m.insert("REASONING", vec![
-        "groq/llama-3.3-70b-versatile", // free tier (best-effort)
-        "deepseek/deepseek-reasoner",   // $2.19
-        "openai/o3-mini",               // $4.40
-        "openai/o3",                    // $8.00
-    ]);
+    m.insert(
+        "SIMPLE",
+        vec![
+            "groq/llama-3.3-70b-versatile", // free tier
+            "deepseek/deepseek-chat",       // $0.42
+            "openai/gpt-4o-mini",           // $0.60
+            "openai/gpt-3.5-turbo",         // $1.50
+        ],
+    );
+    m.insert(
+        "MEDIUM",
+        vec![
+            "groq/llama-3.3-70b-versatile", // free tier
+            "deepseek/deepseek-chat",       // $0.42
+            "openai/gpt-4o-mini",           // $0.60
+            "minimax/minimax-m2",           // $1.20
+        ],
+    );
+    m.insert(
+        "COMPLEX",
+        vec![
+            "groq/llama-3.3-70b-versatile", // free tier (best-effort)
+            "anthropic/claude-sonnet-4-5",  // $15.00
+            "openai/gpt-4o",                // $10.00
+            "anthropic/claude-opus-4-5",    // $25.00
+        ],
+    );
+    m.insert(
+        "REASONING",
+        vec![
+            "groq/llama-3.3-70b-versatile", // free tier (best-effort)
+            "deepseek/deepseek-reasoner",   // $2.19
+            "openai/o3-mini",               // $4.40
+            "openai/o3",                    // $8.00
+        ],
+    );
     m
 }

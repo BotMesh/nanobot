@@ -104,9 +104,7 @@ class Session:
             List of messages in LLM format.
         """
         # Get recent messages
-        recent = (
-            self.messages[-max_messages:] if len(self.messages) > max_messages else self.messages
-        )
+        recent = self.messages[-max_messages:] if len(self.messages) > max_messages else self.messages
 
         # Convert to LLM format (just role and content)
         return [{"role": m["role"], "content": m["content"]} for m in recent]
@@ -178,11 +176,7 @@ class SessionManager:
 
                     if data.get("_type") == "metadata":
                         metadata = data.get("metadata", {})
-                        created_at = (
-                            datetime.fromisoformat(data["created_at"])
-                            if data.get("created_at")
-                            else None
-                        )
+                        created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
                     else:
                         messages.append(data)
 

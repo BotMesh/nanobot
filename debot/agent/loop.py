@@ -193,19 +193,13 @@ class AgentLoop:
 
         if compaction_enabled:
             # Naive token estimate: 1 token ~= chars_per_token characters
-            estimated_tokens = sum(len(str(m.get("content", ""))) for m in messages) // max(
-                1, chars_per_token
-            )
+            estimated_tokens = sum(len(str(m.get("content", ""))) for m in messages) // max(1, chars_per_token)
             if estimated_tokens >= int(max_tokens * compaction_trigger_ratio):
                 if not compaction_silent:
-                    logger.info(
-                        f"Context near limit ({estimated_tokens}/{max_tokens} tokens). Running compaction."
-                    )
+                    logger.info(f"Context near limit ({estimated_tokens}/{max_tokens} tokens). Running compaction.")
                 # Compact the session using configured keep_last
                 try:
-                    compacted = self.sessions.compact_session(
-                        msg.session_key, keep_last=compaction_keep_last
-                    )
+                    compacted = self.sessions.compact_session(msg.session_key, keep_last=compaction_keep_last)
                     if compacted > 0:
                         # Rebuild messages from the compacted history
                         session = self.sessions.get_or_create(msg.session_key)
@@ -215,9 +209,7 @@ class AgentLoop:
                             media=msg.media if msg.media else None,
                         )
                         if not compaction_silent:
-                            logger.info(
-                                f"Auto-compaction completed: {compacted} messages compacted."
-                            )
+                            logger.info(f"Auto-compaction completed: {compacted} messages compacted.")
                 except Exception as e:
                     logger.warning(f"Auto-compaction failed: {e}")
 
@@ -304,8 +296,10 @@ class AgentLoop:
                         tried.add(alt["model"])
                         logger.warning(
                             "Billing fallback: {} failed [{}] → trying same-tier {} (${:.2f}/M)",
-                            chosen_model, response.finish_reason,
-                            alt["model"], alt["cost"],
+                            chosen_model,
+                            response.finish_reason,
+                            alt["model"],
+                            alt["cost"],
                         )
                         try:
                             _debot_rust.record_escalation()
@@ -313,7 +307,9 @@ class AgentLoop:
                             pass
                         chosen_model = alt["model"]
                         response = await self.provider.chat(
-                            messages=messages, tools=self.tools.get_definitions(), model=chosen_model
+                            messages=messages,
+                            tools=self.tools.get_definitions(),
+                            model=chosen_model,
                         )
                         if response.finish_reason not in _fail_reasons:
                             rerouted = True
@@ -332,7 +328,8 @@ class AgentLoop:
                             tried.add(fb["model"])
                             logger.warning(
                                 "Billing fallback: same-tier exhausted, escalating → {} ({})",
-                                fb["model"], fb["tier"],
+                                fb["model"],
+                                fb["tier"],
                             )
                             try:
                                 _debot_rust.record_escalation()
@@ -342,7 +339,9 @@ class AgentLoop:
                             current_tier = fb["tier"]
                             esc_tier = fb["tier"]
                             response = await self.provider.chat(
-                                messages=messages, tools=self.tools.get_definitions(), model=chosen_model
+                                messages=messages,
+                                tools=self.tools.get_definitions(),
+                                model=chosen_model,
                             )
                             if response.finish_reason not in _fail_reasons:
                                 break
@@ -355,8 +354,11 @@ class AgentLoop:
                         fb = json.loads(fb_json)
                         logger.warning(
                             "Escalating: {} ({}) failed [{}] → {} ({})",
-                            chosen_model, current_tier, response.finish_reason,
-                            fb["model"], fb["tier"],
+                            chosen_model,
+                            current_tier,
+                            response.finish_reason,
+                            fb["model"],
+                            fb["tier"],
                         )
                         try:
                             _debot_rust.record_escalation()
@@ -365,7 +367,9 @@ class AgentLoop:
                         chosen_model = fb["model"]
                         current_tier = fb["tier"]
                         response = await self.provider.chat(
-                            messages=messages, tools=self.tools.get_definitions(), model=chosen_model
+                            messages=messages,
+                            tools=self.tools.get_definitions(),
+                            model=chosen_model,
                         )
                         if response.finish_reason not in _fail_reasons:
                             break
@@ -397,18 +401,14 @@ class AgentLoop:
                     }
                     for tc in response.tool_calls
                 ]
-                messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts
-                )
+                messages = self.context.add_assistant_message(messages, response.content, tool_call_dicts)
 
                 # Execute tools
                 for tool_call in response.tool_calls:
                     args_str = json.dumps(tool_call.arguments)
                     logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
-                    messages = self.context.add_tool_result(
-                        messages, tool_call.id, tool_call.name, result
-                    )
+                    messages = self.context.add_tool_result(messages, tool_call.id, tool_call.name, result)
             else:
                 # No tool calls, we're done
                 final_content = response.content
@@ -457,9 +457,7 @@ class AgentLoop:
             spawn_tool.set_context(origin_channel, origin_chat_id)
 
         # Build messages with the announce content
-        messages = self.context.build_messages(
-            history=session.get_history(), current_message=msg.content
-        )
+        messages = self.context.build_messages(history=session.get_history(), current_message=msg.content)
 
         # Agent loop (limited for announce handling)
         iteration = 0
@@ -468,9 +466,7 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
 
-            response = await self.provider.chat(
-                messages=messages, tools=self.tools.get_definitions(), model=self.model
-            )
+            response = await self.provider.chat(messages=messages, tools=self.tools.get_definitions(), model=self.model)
 
             if response.has_tool_calls:
                 tool_call_dicts = [
@@ -481,17 +477,13 @@ class AgentLoop:
                     }
                     for tc in response.tool_calls
                 ]
-                messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts
-                )
+                messages = self.context.add_assistant_message(messages, response.content, tool_call_dicts)
 
                 for tool_call in response.tool_calls:
                     args_str = json.dumps(tool_call.arguments)
                     logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
-                    messages = self.context.add_tool_result(
-                        messages, tool_call.id, tool_call.name, result
-                    )
+                    messages = self.context.add_tool_result(messages, tool_call.id, tool_call.name, result)
             else:
                 final_content = response.content
                 break
@@ -504,9 +496,7 @@ class AgentLoop:
         session.add_message("assistant", final_content)
         self.sessions.save(session)
 
-        return OutboundMessage(
-            channel=origin_channel, chat_id=origin_chat_id, content=final_content
-        )
+        return OutboundMessage(channel=origin_channel, chat_id=origin_chat_id, content=final_content)
 
     async def process_direct(self, content: str, session_key: str = "cli:direct") -> str:
         """

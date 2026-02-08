@@ -68,9 +68,7 @@ def onboard():
     console.print("  1. Add your API key to [cyan]~/.debot/config.json[/cyan]")
     console.print("     Get one at: https://openrouter.ai/keys")
     console.print('  2. Chat: [cyan]debot agent -m "Hello!"[/cyan]')
-    console.print(
-        "\n[dim]Want Telegram/WhatsApp? See: https://github.com/BotMesh/debot#-chat-apps[/dim]"
-    )
+    console.print("\n[dim]Want Telegram/WhatsApp? See: https://github.com/BotMesh/debot#-chat-apps[/dim]")
 
 
 def _create_workspace_templates(workspace: Path):
@@ -155,18 +153,10 @@ app.add_typer(config_app, name="config")
 @config_app.command("compaction")
 def config_compaction(
     show: bool = typer.Option(True, "--show/--no-show", help="Show current compaction settings"),
-    enabled: bool | None = typer.Option(
-        None, "--enabled/--disabled", help="Enable or disable auto-compaction"
-    ),
-    keep_last: int | None = typer.Option(
-        None, "--keep-last", "-k", help="Number of recent messages to keep"
-    ),
-    trigger_ratio: float | None = typer.Option(
-        None, "--trigger-ratio", help="Trigger ratio (0.0-1.0) of model tokens"
-    ),
-    silent: bool | None = typer.Option(
-        None, "--silent/--no-silent", help="Run compactions silently (no logs)"
-    ),
+    enabled: bool | None = typer.Option(None, "--enabled/--disabled", help="Enable or disable auto-compaction"),
+    keep_last: int | None = typer.Option(None, "--keep-last", "-k", help="Number of recent messages to keep"),
+    trigger_ratio: float | None = typer.Option(None, "--trigger-ratio", help="Trigger ratio (0.0-1.0) of model tokens"),
+    silent: bool | None = typer.Option(None, "--silent/--no-silent", help="Run compactions silently (no logs)"),
     chars_per_token: int | None = typer.Option(
         None, "--chars-per-token", help="Characters per token for naive estimator"
     ),
@@ -212,18 +202,10 @@ def config_compaction(
 @config_app.command("compaction-model")
 def config_compaction_model(
     model: str = typer.Argument(..., help="Model name (e.g., anthropic/claude-opus-4-5)"),
-    show: bool = typer.Option(
-        True, "--show/--no-show", help="Show current model-specific settings"
-    ),
-    keep_last: int | None = typer.Option(
-        None, "--keep-last", "-k", help="Override keep_last for this model"
-    ),
-    trigger_ratio: float | None = typer.Option(
-        None, "--trigger-ratio", help="Override trigger_ratio for this model"
-    ),
-    silent: bool | None = typer.Option(
-        None, "--silent/--no-silent", help="Override silent for this model"
-    ),
+    show: bool = typer.Option(True, "--show/--no-show", help="Show current model-specific settings"),
+    keep_last: int | None = typer.Option(None, "--keep-last", "-k", help="Override keep_last for this model"),
+    trigger_ratio: float | None = typer.Option(None, "--trigger-ratio", help="Override trigger_ratio for this model"),
+    silent: bool | None = typer.Option(None, "--silent/--no-silent", help="Override silent for this model"),
     clear: bool = typer.Option(False, "--clear", help="Remove all overrides for this model"),
 ):
     """View or set per-model compaction overrides."""
@@ -315,7 +297,9 @@ def gateway(
         raise typer.Exit(1)
 
     provider = LiteLLMProvider(
-        api_key=api_key, api_base=api_base, default_model=config.agents.defaults.model,
+        api_key=api_key,
+        api_base=api_base,
+        default_model=config.agents.defaults.model,
         all_api_keys=config.get_all_api_keys(),
     )
 
@@ -424,7 +408,9 @@ def agent(
 
     bus = MessageBus()
     provider = LiteLLMProvider(
-        api_key=api_key, api_base=api_base, default_model=config.agents.defaults.model,
+        api_key=api_key,
+        api_base=api_base,
+        default_model=config.agents.defaults.model,
         all_api_keys=config.get_all_api_keys(),
     )
 
@@ -493,27 +479,19 @@ app.add_typer(sessions_app, name="sessions")
 @sessions_app.command("compact")
 def sessions_compact(
     session_key: str = typer.Argument(..., help="Session key, e.g. telegram:12345"),
-    keep_last: int = typer.Option(
-        50, "--keep-last", "-k", help="Number of recent messages to keep"
-    ),
-    instruction: str | None = typer.Option(
-        None, "--instruction", "-i", help="Optional compaction instruction"
-    ),
+    keep_last: int = typer.Option(50, "--keep-last", "-k", help="Number of recent messages to keep"),
+    instruction: str | None = typer.Option(None, "--instruction", "-i", help="Optional compaction instruction"),
 ):
     """Compact an existing session's history into a compact summary entry."""
     from debot.config.loader import load_config
 
     config = load_config()
-    sm = __import__("debot.session._manager_py", fromlist=["SessionManager"]).SessionManager(
-        config.workspace_path
-    )
+    sm = __import__("debot.session._manager_py", fromlist=["SessionManager"]).SessionManager(config.workspace_path)
 
     try:
         compacted = sm.compact_session(session_key, keep_last=keep_last, instruction=instruction)
         if compacted:
-            console.print(
-                f"[green]✓[/green] Compacted {compacted} messages for session {session_key}"
-            )
+            console.print(f"[green]✓[/green] Compacted {compacted} messages for session {session_key}")
         else:
             console.print(f"[yellow]No messages to compact for session {session_key}[/yellow]")
     except Exception as e:
@@ -747,9 +725,7 @@ def cron_list(
         # Format next run
         next_run = ""
         if job.state.next_run_at_ms:
-            next_time = time.strftime(
-                "%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000)
-            )
+            next_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000))
             next_run = next_time
 
         status = "[green]enabled[/green]" if job.enabled else "[dim]disabled[/dim]"
@@ -768,9 +744,7 @@ def cron_add(
     at: str = typer.Option(None, "--at", help="Run once at time (ISO format)"),
     deliver: bool = typer.Option(False, "--deliver", "-d", help="Deliver response to channel"),
     to: str = typer.Option(None, "--to", help="Recipient for delivery"),
-    channel: str = typer.Option(
-        None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"
-    ),
+    channel: str = typer.Option(None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"),
 ):
     """Add a scheduled job."""
     from debot.config.loader import get_data_dir
@@ -879,12 +853,8 @@ def status():
 
     console.print(f"{__logo__} debot Status\n")
 
-    console.print(
-        f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}"
-    )
-    console.print(
-        f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}"
-    )
+    console.print(f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}")
+    console.print(f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}")
 
     if config_path.exists():
         console.print(f"Model: {config.agents.defaults.model}")
@@ -896,19 +866,11 @@ def status():
         has_gemini = bool(config.providers.gemini.api_key)
         has_vllm = bool(config.providers.vllm.api_base)
 
-        console.print(
-            f"OpenRouter API: {'[green]✓[/green]' if has_openrouter else '[dim]not set[/dim]'}"
-        )
-        console.print(
-            f"Anthropic API: {'[green]✓[/green]' if has_anthropic else '[dim]not set[/dim]'}"
-        )
+        console.print(f"OpenRouter API: {'[green]✓[/green]' if has_openrouter else '[dim]not set[/dim]'}")
+        console.print(f"Anthropic API: {'[green]✓[/green]' if has_anthropic else '[dim]not set[/dim]'}")
         console.print(f"OpenAI API: {'[green]✓[/green]' if has_openai else '[dim]not set[/dim]'}")
         console.print(f"Gemini API: {'[green]✓[/green]' if has_gemini else '[dim]not set[/dim]'}")
-        vllm_status = (
-            f"[green]✓ {config.providers.vllm.api_base}[/green]"
-            if has_vllm
-            else "[dim]not set[/dim]"
-        )
+        vllm_status = f"[green]✓ {config.providers.vllm.api_base}[/green]" if has_vllm else "[dim]not set[/dim]"
         console.print(f"vLLM/Local: {vllm_status}")
 
         # Router status
@@ -981,14 +943,7 @@ def router_test(
 
             for dim, score in sorted(scores.items(), key=lambda x: -x[1]):
                 bar_len = int(score * 20)
-                bar = (
-                    "[green]"
-                    + "\u2588" * bar_len
-                    + "[/green]"
-                    + "[dim]"
-                    + "\u2591" * (20 - bar_len)
-                    + "[/dim]"
-                )
+                bar = "[green]" + "\u2588" * bar_len + "[/green]" + "[dim]" + "\u2591" * (20 - bar_len) + "[/dim]"
                 table.add_row(dim, f"{score:.3f}", bar)
 
             console.print(table)
@@ -1040,8 +995,7 @@ def router_metrics():
         last = metrics.get("last_decision")
         if last:
             console.print(
-                f"\nLast: [cyan]{last['model']}[/cyan] "
-                f"(tier={last['tier']}, confidence={last['confidence']:.2f})"
+                f"\nLast: [cyan]{last['model']}[/cyan] (tier={last['tier']}, confidence={last['confidence']:.2f})"
             )
 
     except ImportError:
